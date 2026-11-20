@@ -24,7 +24,8 @@ import {
   Loader2
 } from "lucide-react";
 
-const API_BASE = "https://api.singodiyatechnologies.tech";
+import { API_BASE } from "./lib/api";
+
 const LEARN_API = `${API_BASE}/intern/learn`;
 const PROGRESS_API = `${API_BASE}/intern/learn/progress`;
 

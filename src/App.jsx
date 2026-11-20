@@ -1,12 +1,12 @@
-
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BrowserRouter,
   Routes,
   Route,
   Navigate,
   Outlet,
-  useLocation
+  useLocation,
+  useNavigate
 } from "react-router-dom";
 
 import Login from "./Login";
@@ -14,26 +14,152 @@ import Dash from "./Dash";
 import Drawer from "./Drawer";
 import Learn from "./Learn";
 import Skills from "./Skills";
+import Attendance from "./Attendance";
+import Profile from "./Profile";
+import AdminPanel from "./AdminPanel";
+import Tasks from "./Tasks";
+import Logbook from "./Logbook";
+import Projects from "./Projects";
+import Certificates from "./Certificates";
+
+import { apiGet } from "./lib/api";
+
+const pageTitles = {
+  "/dash": "Overview",
+  "/dash/attendance": "Attendance",
+  "/dash/tasks": "Tasks",
+  "/dash/logbook": "Daily Logbook",
+  "/dash/learn": "Learn",
+  "/dash/skills": "My Skills",
+  "/dash/projects": "Assigned Projects",
+  "/dash/submission": "Project Submission",
+  "/dash/announcements": "Announcements",
+  "/dash/certificates": "Certificates",
+  "/dash/profile": "My Profile",
+  "/dash/settings": "Settings"
+};
+
+const getStoredUser = () => {
+  try {
+    const value = localStorage.getItem("intern_user");
+    return value ? JSON.parse(value) : {};
+  } catch {
+    return {};
+  }
+};
+
+const getUserName = user =>
+  user?.full_name ||
+  user?.name ||
+  user?.student_name ||
+  user?.username ||
+  user?.first_name ||
+  user?.display_name ||
+  "";
+
+const getUserPhoto = user =>
+  user?.profile_photo ||
+  user?.profile_image ||
+  user?.photo_url ||
+  user?.photo ||
+  user?.avatar ||
+  user?.image ||
+  user?.picture ||
+  user?.profile?.photo ||
+  user?.profile?.avatar ||
+  "";
+
+const getInitials = name => {
+  if (!name) return "I";
+
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(part => part.charAt(0))
+    .join("")
+    .toUpperCase();
+};
+
 function DashboardLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const location = useLocation();
+  const [user, setUser] = useState(getStoredUser);
+  const [photoError, setPhotoError] = useState(false);
 
-  const pageTitles = {
-    "/dash": "Overview",
-    "/dash/attendance": "Attendance",
-    "/dash/tasks": "Tasks",
-    "/dash/logbook": "Daily Logbook",
-    "/dash/learn": "Learn",
-    "/dash/skills": "My Skills",
-    "/dash/projects": "Assigned Projects",
-    "/dash/submission": "Project Submission",
-    "/dash/announcements": "Announcements",
-    "/dash/certificates": "Certificates",
-    "/dash/profile": "My Profile",
-    "/dash/settings": "Settings"
-  };
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const title = pageTitles[location.pathname] || "Intern Portal";
+
+  useEffect(() => {
+    let active = true;
+
+    const loadProfile = async () => {
+      const stored = getStoredUser();
+
+      setUser(stored);
+      setPhotoError(false);
+
+      try {
+        let response;
+
+        try {
+          response = await apiGet("/intern/profile");
+        } catch {
+          response = await apiGet("/intern/me");
+        }
+
+        const profile =
+          response?.user ||
+          response?.student ||
+          response?.profile ||
+          response?.data ||
+          response;
+
+        if (!active || !profile) return;
+
+        const merged = {
+          ...stored,
+          ...profile
+        };
+
+        setUser(merged);
+
+        localStorage.setItem(
+          "intern_user",
+          JSON.stringify(merged)
+        );
+      } catch {
+        if (active) {
+          setUser(stored);
+        }
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const name =
+    getUserName(user) ||
+    localStorage.getItem("intern_email")?.split("@")[0] ||
+    "Intern";
+
+  const photo = getUserPhoto(user);
+
+  const email =
+    user?.email ||
+    user?.email_address ||
+    localStorage.getItem("intern_email") ||
+    "Student Account";
+
+  const role =
+    user?.role ||
+    user?.designation ||
+    "Intern";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -43,30 +169,47 @@ function DashboardLayout() {
       />
 
       <main className="min-h-screen lg:ml-[280px]">
-        <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-slate-200 bg-white/95 px-5 backdrop-blur-md sm:px-8">
+        <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-md sm:px-8">
+
           <div className="pl-12 lg:pl-0">
             <h1 className="text-lg font-semibold text-slate-900">
               {title}
             </h1>
+
             <p className="hidden text-xs text-slate-500 sm:block">
               Internship Management Portal
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate("/dash/profile")}
+            className="flex items-center gap-2 rounded-xl px-2 py-1.5 transition hover:bg-slate-50 sm:gap-3"
+          >
             <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium text-slate-800">
-                Intern
+              <p className="max-w-[180px] truncate text-sm font-medium text-slate-800">
+                {name}
               </p>
-              <p className="text-xs text-slate-500">
-                Student Account
+
+              <p className="max-w-[180px] truncate text-xs text-slate-500">
+                {role === "Intern" ? "Student Account" : role}
               </p>
             </div>
 
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
-              I
+            <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-indigo-100">
+              {photo && !photoError ? (
+                <img
+                  src={photo}
+                  alt={name}
+                  className="h-full w-full object-cover"
+                  onError={() => setPhotoError(true)}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-indigo-700">
+                  {getInitials(name)}
+                </div>
+              )}
             </div>
-          </div>
+          </button>
         </header>
 
         <div className="p-4 sm:p-6 lg:p-8">
@@ -79,6 +222,7 @@ function DashboardLayout() {
 
 function PlaceholderPage() {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const pageName = location.pathname
     .split("/")
@@ -103,7 +247,7 @@ function PlaceholderPage() {
         </p>
 
         <button
-          onClick={() => window.history.back()}
+          onClick={() => navigate(-1)}
           className="mt-6 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
         >
           Go Back
@@ -117,34 +261,89 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route
+          path="/"
+          element={<Navigate to="/login" replace />}
+        />
 
-        <Route path="/login" element={<Login />} />
+        <Route
+          path="/login"
+          element={<Login />}
+        />
+
+        <Route
+          path="/admin"
+          element={<AdminPanel />}
+        />
 
         <Route path="/dash" element={<DashboardLayout />}>
           <Route index element={<Dash />} />
 
-          <Route path="attendance" element={<PlaceholderPage />} />
-          <Route path="/dash/learn" element={<Learn />} />
-          <Route path="tasks" element={<PlaceholderPage />} />
-          <Route path="logbook" element={<PlaceholderPage />} />
+          <Route
+            path="attendance"
+            element={<Attendance />}
+          />
 
-          <Route path="learn" element={<Learn />} />
-          <Route path="skills" element={<Skills />} />
+          <Route
+            path="tasks"
+            element={<Tasks />}
+          />
 
-          <Route path="projects" element={<PlaceholderPage />} />
-          <Route path="submission" element={<PlaceholderPage />} />
+          <Route
+            path="logbook"
+            element={<Logbook />}
+          />
 
-          <Route path="announcements" element={<PlaceholderPage />} />
-          <Route path="certificates" element={<PlaceholderPage />} />
+          <Route
+            path="learn"
+            element={<Learn />}
+          />
 
-          <Route path="profile" element={<PlaceholderPage />} />
-          <Route path="settings" element={<PlaceholderPage />} />
+          <Route
+            path="skills"
+            element={<Skills />}
+          />
 
-          <Route path="*" element={<Navigate to="/dash" replace />} />
+          <Route
+            path="projects"
+            element={<Projects />}
+          />
+
+          <Route
+            path="submission"
+            element={<PlaceholderPage />}
+          />
+
+          <Route
+            path="announcements"
+            element={<PlaceholderPage />}
+          />
+
+          <Route
+            path="certificates"
+            element={<Certificates />}
+          />
+
+          <Route
+            path="profile"
+            element={<Profile />}
+          />
+
+          <Route
+            path="settings"
+            element={<PlaceholderPage />}
+          />
+
+          <Route
+            path="*"
+            element={<Navigate to="/dash" replace />}
+          />
         </Route>
 
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to="/login" replace />}
+        />
       </Routes>
     </BrowserRouter>
   );

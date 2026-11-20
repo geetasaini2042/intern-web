@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Building2
 } from "lucide-react";
+import { apiGet } from "./lib/api";
 
 const navigation = [
   {
@@ -59,11 +60,111 @@ const navigation = [
   }
 ];
 
+const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem("intern_user");
+    if (!raw) return {};
+
+    return typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch {
+    return {};
+  }
+};
+
+const getName = user =>
+  user?.full_name ||
+  user?.name ||
+  user?.student_name ||
+  user?.username ||
+  user?.first_name ||
+  user?.display_name ||
+  "";
+
+const getPhoto = user =>
+  user?.profile_photo ||
+  user?.profile_image ||
+  user?.photo_url ||
+  user?.photo ||
+  user?.avatar ||
+  user?.image ||
+  user?.picture ||
+  user?.profile?.photo ||
+  user?.profile?.avatar ||
+  "";
+
+const getInitials = name => {
+  if (!name) return "I";
+
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(word => word[0])
+    .join("")
+    .toUpperCase();
+};
+
 export default function Drawer({ open, onClose }) {
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState({});
 
-  const toggleSection = (title) => {
+  const [expanded, setExpanded] = useState({});
+  const [user, setUser] = useState(getStoredUser);
+  const [photoError, setPhotoError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadProfile = async () => {
+      const stored = getStoredUser();
+
+      setUser(stored);
+      setPhotoError(false);
+
+      try {
+        let profile;
+
+        try {
+          profile = await apiGet("/intern/profile");
+        } catch {
+          profile = await apiGet("/intern/me");
+        }
+
+        const actualProfile =
+          profile?.user ||
+          profile?.student ||
+          profile?.profile ||
+          profile?.data ||
+          profile;
+
+        if (active && actualProfile) {
+          setUser(prev => ({
+            ...prev,
+            ...actualProfile
+          }));
+
+          localStorage.setItem(
+            "intern_user",
+            JSON.stringify({
+              ...stored,
+              ...actualProfile
+            })
+          );
+        }
+      } catch {
+        if (active) {
+          setUser(stored);
+        }
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const toggleSection = title => {
     setExpanded(prev => ({
       ...prev,
       [title]: !prev[title]
@@ -75,11 +176,31 @@ export default function Drawer({ open, onClose }) {
     localStorage.removeItem("access_token");
     localStorage.removeItem("intern_email");
     localStorage.removeItem("intern_user");
+
     navigate("/login", { replace: true });
     onClose?.();
   };
 
   const close = () => onClose?.();
+
+  const name =
+    getName(user) ||
+    localStorage.getItem("intern_email")?.split("@")[0] ||
+    "Intern";
+
+  const photo = getPhoto(user);
+
+  const email =
+    user?.email ||
+    user?.email_address ||
+    localStorage.getItem("intern_email") ||
+    "Student Account";
+
+  const role =
+    user?.role ||
+    user?.designation ||
+    user?.program ||
+    "Intern";
 
   return (
     <>
@@ -104,19 +225,19 @@ export default function Drawer({ open, onClose }) {
           open ? "translate-x-0" : "-translate-x-full"
         } lg:translate-x-0`}
       >
-        <div className="flex h-[76px] items-center justify-between border-b border-slate-100 px-5">
+        <div className="border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-3">
             <img
               src="/logo.png"
               alt="Singodiya Technologies"
               className="h-10 w-10 rounded-lg object-contain"
-              onError={(e) => {
+              onError={e => {
                 e.currentTarget.style.display = "none";
               }}
             />
 
-            <div>
-              <h2 className="text-sm font-bold tracking-tight text-slate-900">
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-bold tracking-tight text-slate-900">
                 Singodiya Technologies
               </h2>
               <p className="text-xs text-slate-500">Intern Portal</p>
@@ -124,21 +245,49 @@ export default function Drawer({ open, onClose }) {
           </div>
 
           <button
-            onClick={close}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
+            onClick={() => navigate("/dash/profile")}
+            className="mt-4 flex w-full items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 text-left transition hover:border-indigo-100 hover:bg-indigo-50/50"
           >
-            <X size={19} />
+            <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-indigo-100">
+              {photo && !photoError ? (
+                <img
+                  src={photo}
+                  alt={name}
+                  className="h-full w-full object-cover"
+                  onError={() => setPhotoError(true)}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm font-bold text-indigo-700">
+                  {getInitials(name)}
+                </div>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {name}
+              </p>
+              <p className="truncate text-xs text-slate-500">
+                {email}
+              </p>
+              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-indigo-600">
+                {role}
+              </p>
+            </div>
+
+            <UserRound size={16} className="shrink-0 text-slate-400" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-5">
-          {navigation.map((group) => (
+          {navigation.map(group => (
             <div key={group.title} className="mb-5">
               <button
                 onClick={() => toggleSection(group.title)}
                 className="mb-2 flex w-full items-center justify-between px-3 text-[10px] font-bold tracking-[1.2px] text-slate-400"
               >
                 {group.title}
+
                 <ChevronDown
                   size={14}
                   className={`transition-transform ${
@@ -149,7 +298,7 @@ export default function Drawer({ open, onClose }) {
 
               {!expanded[group.title] && (
                 <div className="space-y-1">
-                  {group.items.map((item) => {
+                  {group.items.map(item => {
                     const Icon = item.icon;
 
                     return (
@@ -223,6 +372,7 @@ export default function Drawer({ open, onClose }) {
         <div className="border-t border-slate-100 p-3">
           <div className="mb-3 flex items-center gap-2 rounded-xl bg-slate-50 p-3">
             <Building2 size={17} className="text-slate-500" />
+
             <div className="min-w-0">
               <p className="truncate text-xs font-semibold text-slate-800">
                 Internship Program

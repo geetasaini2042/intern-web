@@ -9,11 +9,13 @@ import {
   ShieldCheck,
   Loader2,
 } from "lucide-react";
-
+import { API } from "./lib/api";
 export default function Login() {
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(
+    () => localStorage.getItem("intern_email") || ""
+  );
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
@@ -24,7 +26,9 @@ export default function Login() {
     e.preventDefault();
     setError("");
 
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
       setError("Please enter your email and password.");
       return;
     }
@@ -32,18 +36,44 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Demo authentication
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const res = await fetch(`${API}/intern/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(
+          data.detail || data.message || "Invalid email or password."
+        );
+      }
+
+      if (!data.access_token) {
+        throw new Error("Authentication token not received.");
+      }
+
+      // टोकन और प्रोफ़ाइल सेव करें
+      localStorage.setItem("intern_token", data.access_token);
+      if (data.profile) {
+        localStorage.setItem("intern_profile", JSON.stringify(data.profile));
+      }
 
       if (remember) {
-        localStorage.setItem("intern_email", email);
+        localStorage.setItem("intern_email", cleanEmail);
       } else {
         localStorage.removeItem("intern_email");
       }
 
       navigate("/dash", { replace: true });
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      setError(err.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }

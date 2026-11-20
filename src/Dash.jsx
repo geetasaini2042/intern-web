@@ -32,9 +32,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-const API_BASE = "https://api.singodiyatechnologies.tech";
+import { API_BASE } from "./lib/api";
 
-// Update this endpoint according to your actual backend.
 const API_ENDPOINT = `${API_BASE}/intern/dashboard`;
 
 const navigation = [

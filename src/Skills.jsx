@@ -18,7 +18,7 @@ import {
   X
 } from "lucide-react";
 
-const API_BASE = "https://api.singodiyatechnologies.tech";
+import { API_BASE } from "./lib/api";
 const API_URL = `${API_BASE}/intern/skills`;
 
 const levelColors = {
