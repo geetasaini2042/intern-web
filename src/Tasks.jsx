@@ -895,11 +895,6 @@ export default function TaskDetail() {
     }
   };
 
-  const deadlinePassed =
-    dueDate &&
-    !isNaN(dueDate.getTime()) &&
-    dueDate.getTime() < now;
-
   const taskType =
     task?.task_type ||
     task?.type ||
