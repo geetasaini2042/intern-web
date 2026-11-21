@@ -1,747 +1,1938 @@
+
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  Search,
-  Filter,
-  BookOpen,
-  Code2,
-  FileText,
-  ClipboardList,
-  Clock,
-  CalendarDays,
-  CheckCircle2,
-  Circle,
-  ArrowRight,
-  Play,
-  Target,
-  AlertCircle,
-  X,
-  Loader2,
-  RefreshCw,
-  ChevronRight,
-  Layers3,
-  Sparkles
-} from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import { apiGet, apiPost } from "../../lib/api";
 
-import { API } from "./lib/api";
-const demoTasks = [
-  {
-    id: "task-1",
-    title: "Introduction to Your Internship Domain",
-    description: "Understand your internship domain, its scope, tools and practical applications.",
-    category: "Learn",
-    type: "learning",
-    status: "in_progress",
-    priority: "high",
-    progress: 40,
-    due_date: "2026-11-23",
-    estimated_time: "2 hours",
-    skills: ["Fundamentals", "Industry Overview"],
-    lesson_id: "intro-domain"
-  },
-  {
-    id: "task-2",
-    title: "Professional Communication",
-    description: "Learn professional email writing, workplace communication and collaboration.",
-    category: "Learn",
-    type: "learning",
-    status: "pending",
-    priority: "medium",
-    progress: 0,
-    due_date: "2026-11-25",
-    estimated_time: "1.5 hours",
-    skills: ["Communication", "Professional Skills"],
-    lesson_id: "professional-communication"
-  },
-  {
-    id: "task-3",
-    title: "Research & Documentation",
-    description: "Learn how to research topics and create structured professional documentation.",
-    category: "Learn",
-    type: "learning",
-    status: "pending",
-    priority: "medium",
-    progress: 0,
-    due_date: "2026-11-27",
-    estimated_time: "2 hours",
-    skills: ["Research", "Documentation"],
-    lesson_id: "research-documentation"
-  },
-  {
-    id: "task-4",
-    title: "Complete Domain Fundamentals",
-    description: "Complete the foundational learning modules assigned for your internship.",
-    category: "Learning Path",
-    type: "learning",
-    status: "pending",
-    priority: "high",
-    progress: 0,
-    due_date: "2026-11-29",
-    estimated_time: "4 hours",
-    skills: ["Fundamentals"],
-    lesson_id: "domain-fundamentals"
-  },
-  {
-    id: "task-5",
-    title: "Prepare Internship Introduction",
-    description: "Create a brief introduction covering your background, goals and internship expectations.",
-    category: "Assignment",
-    type: "assignment",
-    status: "pending",
-    priority: "low",
-    progress: 0,
-    due_date: "2026-11-30",
-    estimated_time: "1 hour",
-    skills: ["Communication"],
-    lesson_id: null
-  },
-  {
-    id: "task-6",
-    title: "Weekly Progress Report",
-    description: "Prepare and submit your weekly progress report to your mentor.",
-    category: "Submission",
-    type: "submission",
-    status: "completed",
-    progress: 100,
-    priority: "medium",
-    due_date: "2026-11-19",
-    estimated_time: "30 minutes",
-    skills: ["Reporting"],
-    lesson_id: null
-  },
-  {
-    id: "task-7",
-    title: "Explore Required Tools",
-    description: "Familiarize yourself with the essential tools used in your internship domain.",
-    category: "Learn",
-    type: "learning",
-    status: "in_progress",
-    progress: 65,
-    priority: "medium",
-    due_date: "2026-11-26",
-    estimated_time: "3 hours",
-    skills: ["Tools", "Practical Skills"],
-    lesson_id: "required-tools"
-  },
-  {
-    id: "task-8",
-    title: "Submit Daily Logbook",
-    description: "Update your daily activities and submit your internship logbook entry.",
-    category: "Logbook",
-    type: "logbook",
-    status: "pending",
-    progress: 0,
-    priority: "high",
-    due_date: "2026-11-21",
-    estimated_time: "15 minutes",
-    skills: ["Documentation"],
-    lesson_id: null
-  }
-];
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
+  "https://api.singodiyatechnologies.tech";
 
-function getToken() {
-  return localStorage.getItem("intern_token") || localStorage.getItem("access_token");
-}
+const getToken = () =>
+  localStorage.getItem("intern_token") ||
+  localStorage.getItem("access_token") ||
+  "";
 
-function normalizeTasks(data) {
-  const list = Array.isArray(data)
-    ? data
-    : data?.tasks || data?.data?.tasks || data?.data || data?.items || [];
+const getData = (response) =>
+  response?.task ||
+  response?.data?.task ||
+  response?.data ||
+  response;
 
-  return list.map((task, index) => ({
-    ...task,
-    id: task.id || task._id || `task-${index}`,
-    title: task.title || task.name || "Untitled Task",
-    description: task.description || task.details || "",
-    category: task.category || task.type || "General",
-    type: task.type || task.category || "assignment",
-    status: (task.status || "pending").toLowerCase().replace(/\s+/g, "_"),
-    priority: (task.priority || "medium").toLowerCase(),
-    progress: Number(task.progress || 0),
-    due_date: task.due_date || task.deadline || "",
-    estimated_time: task.estimated_time || task.duration || "",
-    skills: task.skills || [],
-    lesson_id: task.lesson_id || task.learning_id || null
-  }));
-}
+const getArray = (value) =>
+  Array.isArray(value) ? value : [];
 
-function formatDate(date) {
-  if (!date) return "No deadline";
+const formatDate = (value) => {
+  if (!value) return "Not specified";
 
-  const d = new Date(date);
-  if (Number.isNaN(d.getTime())) return date;
+  const date = new Date(value);
 
-  return d.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric"
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: value.includes("T") ? "short" : undefined,
   });
-}
+};
 
-function isOverdue(task) {
-  if (!task.due_date || task.status === "completed") return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(task.due_date);
-  due.setHours(0, 0, 0, 0);
-  return due < today;
-}
+const normalizeType = (type) =>
+  String(type || "text").toLowerCase().trim();
 
-function getStatus(status) {
-  if (status === "completed") {
-    return {
-      label: "Completed",
-      color: "text-emerald-700 bg-emerald-50 border-emerald-100",
-      icon: CheckCircle2
-    };
+const isFileType = (type) =>
+  ["file", "upload", "document", "pdf", "image"].includes(type);
+
+const getSubmissionConfig = (task) =>
+  task?.submission_config || {};
+
+const getSubmissionType = (task) =>
+  normalizeType(task?.submission_type);
+
+const extractUrl = (response) => {
+  const data =
+    response?.data ||
+    response?.result ||
+    response;
+
+  if (typeof data === "string") {
+    return data;
   }
 
-  if (status === "in_progress") {
-    return {
-      label: "In Progress",
-      color: "text-blue-700 bg-blue-50 border-blue-100",
-      icon: Play
-    };
+  return (
+    data?.url ||
+    data?.file_url ||
+    data?.document_url ||
+    data?.uploaded_url ||
+    data?.public_url ||
+    data?.path ||
+    data?.data?.url ||
+    data?.data?.file_url ||
+    ""
+  );
+};
+
+const getStatusColor = (status) => {
+  const value = String(status || "").toLowerCase();
+
+  if (
+    ["approved", "completed", "accepted"].includes(value)
+  ) {
+    return "#16a34a";
   }
 
-  return {
-    label: "Pending",
-    color: "text-slate-600 bg-slate-100 border-slate-200",
-    icon: Circle
-  };
-}
+  if (
+    ["revision_required", "rejected", "late"].includes(value)
+  ) {
+    return "#dc2626";
+  }
 
-function getPriority(priority) {
-  const p = priority?.toLowerCase();
+  if (
+    ["submitted", "under_review", "review"].includes(value)
+  ) {
+    return "#d97706";
+  }
 
-  if (p === "high") return "text-red-600";
-  if (p === "low") return "text-slate-500";
-  return "text-amber-600";
-}
+  return "#64748b";
+};
 
-function getTaskIcon(task) {
-  const type = (task.type || task.category || "").toLowerCase();
+const EMPTY_SUBMISSION = {
+  text: "",
+  code: "",
+  url: "",
+  github: "",
+  files: [],
+  fields: {},
+};
 
-  if (type.includes("learn") || type.includes("lesson")) return BookOpen;
-  if (type.includes("project")) return Code2;
-  if (type.includes("submission")) return FileText;
-  if (type.includes("logbook")) return ClipboardList;
-
-  return Target;
-}
-
-function TaskCard({ task, onClick }) {
-  const Status = getStatus(task.status);
-  const StatusIcon = Status.icon;
-  const Icon = getTaskIcon(task);
-  const overdue = isOverdue(task);
-
-  return (
-    <button
-      onClick={() => onClick(task)}
-      className="group w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md sm:p-5"
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-          <Icon size={20} />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-              {task.category}
-            </span>
-
-            {task.priority && (
-              <span className={`text-[11px] font-semibold ${getPriority(task.priority)}`}>
-                {task.priority.toUpperCase()} PRIORITY
-              </span>
-            )}
-          </div>
-
-          <h3 className="mt-2 font-semibold leading-5 text-slate-900 group-hover:text-indigo-700">
-            {task.title}
-          </h3>
-
-          <p className="mt-1.5 line-clamp-2 text-sm leading-5 text-slate-500">
-            {task.description}
-          </p>
-        </div>
-
-        <ChevronRight
-          size={18}
-          className="mt-1 shrink-0 text-slate-400 transition group-hover:translate-x-1 group-hover:text-indigo-600"
-        />
-      </div>
-
-      {task.status === "in_progress" && task.progress > 0 && (
-        <div className="mt-4">
-          <div className="mb-1.5 flex justify-between text-xs">
-            <span className="text-slate-500">Progress</span>
-            <span className="font-semibold text-slate-700">{task.progress}%</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full rounded-full bg-indigo-600 transition-all"
-              style={{ width: `${Math.min(task.progress, 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${Status.color}`}>
-          <StatusIcon size={13} />
-          {Status.label}
-        </span>
-
-        <span className={`flex items-center gap-1.5 text-xs ${overdue ? "font-semibold text-red-600" : "text-slate-500"}`}>
-          <CalendarDays size={14} />
-          {overdue ? "Overdue · " : ""}
-          {formatDate(task.due_date)}
-        </span>
-      </div>
-
-      {task.estimated_time && (
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-          <Clock size={13} />
-          {task.estimated_time}
-        </div>
-      )}
-    </button>
-  );
-}
-
-function TaskModal({ task, onClose, onOpenLearn }) {
-  if (!task) return null;
-
-  const Status = getStatus(task.status);
-  const StatusIcon = Status.icon;
-  const Icon = getTaskIcon(task);
-  const learnTask = task.type === "learning" || task.category?.toLowerCase().includes("learn");
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6"
-      >
-        <div className="flex items-start justify-between">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-            <Icon size={22} />
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded-full p-2 text-slate-400 hover:bg-slate-100"
-          >
-            <X size={19} />
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${Status.color}`}>
-            <StatusIcon size={13} />
-            {Status.label}
-          </span>
-          <span className={`text-xs font-semibold ${getPriority(task.priority)}`}>
-            {task.priority?.toUpperCase()} PRIORITY
-          </span>
-          {isOverdue(task) && (
-            <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600">
-              Overdue
-            </span>
-          )}
-        </div>
-
-        <h2 className="mt-3 text-xl font-bold text-slate-900">{task.title}</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">{task.description}</p>
-
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-xl bg-slate-50 p-3.5">
-            <p className="text-xs text-slate-500">Deadline</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">
-              {formatDate(task.due_date)}
-            </p>
-          </div>
-          <div className="rounded-xl bg-slate-50 p-3.5">
-            <p className="text-xs text-slate-500">Estimated time</p>
-            <p className="mt-1 text-sm font-semibold text-slate-800">
-              {task.estimated_time || "Not specified"}
-            </p>
-          </div>
-        </div>
-
-        {task.skills?.length > 0 && (
-          <div className="mt-5">
-            <h3 className="text-sm font-semibold text-slate-800">Skills covered</h3>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {task.skills.map((skill, index) => (
-                <span key={index} className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700">
-                  {typeof skill === "string" ? skill : skill.name}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {task.status === "in_progress" && (
-          <div className="mt-5">
-            <div className="mb-2 flex justify-between text-sm">
-              <span className="text-slate-500">Task progress</span>
-              <span className="font-semibold text-slate-800">{task.progress}%</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-indigo-600" style={{ width: `${task.progress}%` }} />
-            </div>
-          </div>
-        )}
-
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-          {learnTask ? (
-            <button
-              onClick={() => onOpenLearn(task)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              <BookOpen size={17} />
-              Open Learning
-              <ArrowRight size={16} />
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                onClose();
-                if (task.type === "logbook" || task.category?.toLowerCase().includes("logbook")) {
-                  window.location.href = "/dash/logbook";
-                } else if (task.type === "submission" || task.category?.toLowerCase().includes("submission")) {
-                  window.location.href = "/dash/submission";
-                } else {
-                  window.location.href = "/dash/projects";
-                }
-              }}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
-            >
-              Open Task
-              <ArrowRight size={16} />
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ title, value, description, icon: Icon, color }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-slate-500">{title}</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
-        </div>
-        <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${color}`}>
-          <Icon size={20} />
-        </div>
-      </div>
-      <p className="mt-2 text-xs text-slate-400">{description}</p>
-    </div>
-  );
-}
-
-export default function Tasks() {
+export default function TaskDetail() {
+  const { taskId } = useParams();
   const navigate = useNavigate();
 
-  const [tasks, setTasks] = useState([]);
+  const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [category, setCategory] = useState("all");
-  const [selectedTask, setSelectedTask] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const fetchTasks = async () => {
-    setLoading(true);
-    setError("");
+  const [submission, setSubmission] = useState(EMPTY_SUBMISSION);
+  const [requirementsChecked, setRequirementsChecked] =
+    useState({});
 
+  const [history, setHistory] = useState([]);
+  const [uploadProgress, setUploadProgress] = useState("");
+
+  const [successMessage, setSuccessMessage] = useState("");
+
+  useEffect(() => {
+    loadTask();
+  }, [taskId]);
+
+  async function loadTask() {
     try {
-      const res = await fetch(`${API}/intern/tasks`, {
-        headers: {
-          Authorization: `Bearer ${getToken()}`
-        }
-      });
+      setLoading(true);
+      setError("");
 
-      if (!res.ok) throw new Error("Tasks API is not available.");
+      const response = await apiGet(
+        `/dash/tasks/${taskId}`
+      );
 
-      const data = await res.json();
-      setTasks(normalizeTasks(data));
+      const data = getData(response);
+
+      setTask(data);
+
+      setHistory(
+        data?.submissions ||
+        data?.submission_history ||
+        []
+      );
+
+      if (data?.latest_submission) {
+        setHistory((previous) => {
+          if (
+            previous.some(
+              (item) =>
+                item.id === data.latest_submission.id
+            )
+          ) {
+            return previous;
+          }
+
+          return [
+            data.latest_submission,
+            ...previous
+          ];
+        });
+      }
     } catch (err) {
-      setTasks(demoTasks);
-      setError("Showing sample tasks. Live task data is not available yet.");
+      console.error("Task loading error:", err);
+
+      setError(
+        err?.message ||
+        "Unable to load task details."
+      );
     } finally {
       setLoading(false);
     }
+  }
+
+  const config = useMemo(
+    () => getSubmissionConfig(task),
+    [task]
+  );
+
+  const submissionType = useMemo(
+    () => getSubmissionType(task),
+    [task]
+  );
+
+  const requirements = useMemo(
+    () => getArray(task?.requirements),
+    [task]
+  );
+
+  const resources = useMemo(
+    () => getArray(task?.resources),
+    [task]
+  );
+
+  const gradingCriteria = useMemo(
+    () => getArray(task?.grading_criteria),
+    [task]
+  );
+
+  const mixedFields = useMemo(() => {
+    return getArray(
+      config.fields ||
+      config.submission_fields ||
+      config.accepted_submission_modes
+    );
+  }, [config]);
+
+  const latestSubmission = history[0] || null;
+
+  const taskStatus = latestSubmission?.status || "Pending";
+
+  const alreadySubmitted = Boolean(latestSubmission);
+
+  const isCompleted = [
+    "approved",
+    "completed",
+    "accepted",
+  ].includes(String(taskStatus).toLowerCase());
+
+  const isRevision = [
+    "revision_required",
+    "revision",
+  ].includes(String(taskStatus).toLowerCase());
+
+  const isLocked =
+    isCompleted ||
+    (
+      alreadySubmitted &&
+      !task?.allow_resubmission &&
+      !isRevision
+    );
+
+  const maxAttempts =
+    Number(task?.max_attempts || 0);
+
+  const attemptsUsed = history.length;
+
+  const attemptsRemaining =
+    maxAttempts > 0
+      ? Math.max(maxAttempts - attemptsUsed, 0)
+      : Infinity;
+
+  const canSubmit =
+    !isLocked &&
+    (
+      !alreadySubmitted ||
+      task?.allow_resubmission ||
+      isRevision
+    ) &&
+    (
+      maxAttempts <= 0 ||
+      attemptsRemaining > 0
+    );
+
+  const updateSubmission = (key, value) => {
+    setSubmission((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
   };
 
-  useEffect(() => {
-    fetchTasks();
-  }, []);
+  const updateField = (key, value) => {
+    setSubmission((previous) => ({
+      ...previous,
+      fields: {
+        ...previous.fields,
+        [key]: value,
+      },
+    }));
+  };
 
-  const stats = useMemo(() => {
-    const completed = tasks.filter(t => t.status === "completed").length;
-    const inProgress = tasks.filter(t => t.status === "in_progress").length;
-    const pending = tasks.filter(t => t.status === "pending").length;
-    const overdue = tasks.filter(isOverdue).length;
+  const uploadDocument = async (file) => {
+    const token = getToken();
 
-    return { total: tasks.length, completed, inProgress, pending, overdue };
-  }, [tasks]);
+    const formData = new FormData();
 
-  const categories = useMemo(() => {
-    return ["all", ...new Set(tasks.map(t => t.category).filter(Boolean))];
-  }, [tasks]);
+    formData.append("file", file);
 
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
-      const matchesSearch =
-        `${task.title} ${task.description} ${task.category}`
-          .toLowerCase()
-          .includes(search.toLowerCase());
+    setUploadProgress(`Uploading ${file.name}...`);
 
-      const matchesFilter =
-        filter === "all" ||
-        task.status === filter ||
-        (filter === "overdue" && isOverdue(task));
+    const response = await fetch(
+      `${API_BASE}/intern/upload-doc`,
+      {
+        method: "POST",
+        headers: token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : {},
+        body: formData,
+      }
+    );
 
-      const matchesCategory =
-        category === "all" || task.category === category;
+    let result;
 
-      return matchesSearch && matchesFilter && matchesCategory;
-    });
-  }, [tasks, search, filter, category]);
+    try {
+      result = await response.json();
+    } catch {
+      result = {};
+    }
 
-  const openTask = (task) => {
-    const isLearn = task.type === "learning" || task.category?.toLowerCase().includes("learn");
+    if (!response.ok) {
+      throw new Error(
+        result?.detail ||
+        result?.message ||
+        `Upload failed: ${file.name}`
+      );
+    }
 
-    if (isLearn) {
-      navigate("/dash/learn", {
-        state: {
-          taskId: task.id,
-          lessonId: task.lesson_id,
-          taskTitle: task.title,
-          taskDescription: task.description,
-          fromTasks: true
-        }
-      });
+    const url = extractUrl(result);
+
+    if (!url) {
+      throw new Error(
+        `Upload API did not return a URL for ${file.name}`
+      );
+    }
+
+    return {
+      name: file.name,
+      url,
+      size: file.size,
+      type: file.type,
+    };
+  };
+
+  const validateFile = (file) => {
+    const maxSize =
+      Number(config.max_file_size || 10);
+
+    if (file.size > maxSize * 1024 * 1024) {
+      return `${file.name} exceeds ${maxSize} MB limit.`;
+    }
+
+    const formats = getArray(
+      config.allowed_formats
+    ).map((item =>
+      String(item).toLowerCase().replace(".", "")
+    ));
+
+    if (formats.length) {
+      const extension = file.name
+        .split(".")
+        .pop()
+        .toLowerCase();
+
+      if (!formats.includes(extension)) {
+        return `${file.name} format is not allowed. Allowed: ${formats.join(", ")}`;
+      }
+    }
+
+    if (
+      submissionType === "pdf" &&
+      file.type !== "application/pdf"
+    ) {
+      return "Only PDF files are allowed.";
+    }
+
+    if (
+      submissionType === "image" &&
+      !file.type.startsWith("image/")
+    ) {
+      return "Only image files are allowed.";
+    }
+
+    return "";
+  };
+
+  const handleFileSelection = (
+    event,
+    target = "files"
+  ) => {
+    const selectedFiles = Array.from(
+      event.target.files || []
+    );
+
+    if (!selectedFiles.length) return;
+
+    const errorMessage = selectedFiles
+      .map(validateFile)
+      .find(Boolean);
+
+    if (errorMessage) {
+      setError(errorMessage);
+      event.target.value = "";
       return;
     }
 
-    setSelectedTask(task);
+    setError("");
+
+    setSubmission((previous) => ({
+      ...previous,
+      [target]: config.multiple_files
+        ? [
+            ...(previous[target] || []),
+            ...selectedFiles,
+          ]
+        : selectedFiles.slice(0, 1),
+    }));
+
+    event.target.value = "";
   };
 
-  const openLearnFromModal = (task) => {
-    setSelectedTask(null);
-    navigate("/dash/learn", {
-      state: {
-        taskId: task.id,
-        lessonId: task.lesson_id,
-        taskTitle: task.title,
-        taskDescription: task.description,
-        fromTasks: true
+  const removeFile = (index, target = "files") => {
+    setSubmission((previous) => ({
+      ...previous,
+      [target]: previous[target].filter(
+        (_, fileIndex) => fileIndex !== index
+      ),
+    }));
+  };
+
+  const uploadFiles = async (files) => {
+    const uploaded = [];
+
+    for (const file of files) {
+      const result = await uploadDocument(file);
+      uploaded.push(result);
+    }
+
+    return uploaded;
+  };
+
+  const validateSubmission = () => {
+    if (requirements.length) {
+      const incomplete = requirements.some(
+        (_, index) => !requirementsChecked[index]
+      );
+
+      if (incomplete) {
+        return "Please complete all task requirements before submitting.";
       }
-    });
+    }
+
+    if (submissionType === "text") {
+      const text = submission.text.trim();
+
+      if (!text) {
+        return "Please enter your answer.";
+      }
+
+      if (
+        config.min_length &&
+        text.length < Number(config.min_length)
+      ) {
+        return `Minimum ${config.min_length} characters required.`;
+      }
+
+      if (
+        config.max_length &&
+        text.length > Number(config.max_length)
+      ) {
+        return `Maximum ${config.max_length} characters allowed.`;
+      }
+    }
+
+    if (submissionType === "code") {
+      if (!submission.code.trim()) {
+        return "Please submit your code.";
+      }
+    }
+
+    if (
+      ["url", "link"].includes(submissionType)
+    ) {
+      if (!submission.url.trim()) {
+        return "Please provide your link.";
+      }
+
+      if (!/^https?:\/\/.+/i.test(submission.url)) {
+        return "Please enter a valid URL starting with http:// or https://";
+      }
+    }
+
+    if (
+      ["github", "github_url"].includes(submissionType)
+    ) {
+      if (!submission.github.trim()) {
+        return "Please provide your GitHub repository.";
+      }
+
+      if (
+        !/^https?:\/\/(www\.)?github\.com\/.+/i.test(
+          submission.github
+        )
+      ) {
+        return "Please enter a valid GitHub repository URL.";
+      }
+    }
+
+    if (isFileType(submissionType)) {
+      if (!submission.files.length) {
+        return "Please select a file to upload.";
+      }
+    }
+
+    if (submissionType === "mixed") {
+      if (
+        !submission.text.trim() &&
+        !submission.code.trim() &&
+        !submission.url.trim() &&
+        !submission.github.trim() &&
+        !submission.files.length &&
+        !Object.values(submission.fields).some(
+          (value) => String(value || "").trim()
+        )
+      ) {
+        return "Please complete at least one submission field.";
+      }
+    }
+
+    for (const field of mixedFields) {
+      if (
+        field.required &&
+        !submission.fields[field.name]?.trim()
+      ) {
+        return `${field.label || field.name} is required.`;
+      }
+    }
+
+    return "";
   };
 
-  const filters = [
-    { value: "all", label: "All Tasks" },
-    { value: "pending", label: "Pending" },
-    { value: "in_progress", label: "In Progress" },
-    { value: "completed", label: "Completed" },
-    { value: "overdue", label: "Overdue" }
-  ];
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    setError("");
+    setSuccessMessage("");
 
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 p-5 text-white sm:p-7">
-        <div className="absolute -right-12 -top-16 h-56 w-56 rounded-full bg-white/10" />
-        <div className="absolute -bottom-20 right-24 h-40 w-40 rounded-full bg-white/5" />
+    const validation = validateSubmission();
 
-        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-indigo-100">
-              <Layers3 size={17} />
-              <span className="text-xs font-semibold uppercase tracking-wider">Task Center</span>
-            </div>
-            <h2 className="mt-2 text-2xl font-bold sm:text-3xl">Your Tasks</h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-indigo-100">
-              Stay organized, complete your learning activities and keep your internship progress on track.
-            </p>
+    if (validation) {
+      setError(validation);
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      let uploadedFiles = [];
+
+      if (submission.files.length) {
+        uploadedFiles = await uploadFiles(
+          submission.files
+        );
+      }
+
+      setUploadProgress("");
+
+      const submissionData = {
+        text: submission.text,
+        code: submission.code,
+        url: submission.url,
+        github: submission.github,
+        fields: submission.fields,
+        files: uploadedFiles,
+      };
+
+      const payload = {
+        task_id: taskId,
+        submission_type: submissionType,
+        submission_data: submissionData,
+        submitted_at: new Date().toISOString(),
+      };
+
+      const response = await apiPost(
+        `/dash/tasks/${taskId}/submit`,
+        payload
+      );
+
+      setSuccessMessage(
+        response?.message ||
+        "Task submitted successfully!"
+      );
+
+      setSubmission(EMPTY_SUBMISSION);
+      setRequirementsChecked({});
+
+      await loadTask();
+    } catch (err) {
+      console.error("Task submission error:", err);
+
+      setError(
+        err?.message ||
+        "Submission failed. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+      setUploadProgress("");
+    }
+  };
+
+  const renderFileInput = (
+    label = "Upload file",
+    target = "files"
+  ) => {
+    const selectedFiles = submission[target] || [];
+
+    const accept =
+      config.allowed_formats?.length
+        ? config.allowed_formats
+            .map((format) => `.${String(format).replace(".", "")}`)
+            .join(",")
+        : submissionType === "pdf"
+        ? ".pdf"
+        : submissionType === "image"
+        ? "image/*"
+        : undefined;
+
+    return (
+      <div className="td-field">
+        <label className="td-label">{label}</label>
+
+        <label className="td-upload">
+          <div className="td-upload-icon">↑</div>
+          <strong>Click to select files</strong>
+          <span>
+            {config.multiple_files
+              ? "Multiple files allowed"
+              : "Single file upload"}
+          </span>
+
+          <span className="td-upload-hint">
+            Maximum {config.max_file_size || 10} MB
+          </span>
+
+          <input
+            type="file"
+            accept={accept}
+            multiple={Boolean(config.multiple_files)}
+            onChange={(event) =>
+              handleFileSelection(event, target)
+            }
+          />
+        </label>
+
+        {selectedFiles.length > 0 && (
+          <div className="td-selected-files">
+            {selectedFiles.map((file, index) => (
+              <div
+                className="td-selected-file"
+                key={`${file.name}-${index}`}
+              >
+                <div>
+                  <strong>{file.name}</strong>
+                  <small>
+                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </small>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => removeFile(index, target)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
           </div>
+        )}
+      </div>
+    );
+  };
 
-          <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15">
-              <Sparkles size={22} />
-            </div>
-            <div>
-              <p className="text-xs text-indigo-100">Overall Completion</p>
-              <p className="text-2xl font-bold">
-                {stats.total ? Math.round((stats.completed / stats.total) * 100) : 0}%
-              </p>
-            </div>
-          </div>
+  const renderSubmissionField = (field) => {
+    const type = normalizeType(
+      field.type || field.field_type
+    );
+
+    const name = field.name || field.id;
+    const label = field.label || name;
+    const required = Boolean(field.required);
+
+    if (isFileType(type)) {
+      return renderFileInput(label, name);
+    }
+
+    if (
+      ["code", "textarea", "text"].includes(type)
+    ) {
+      return (
+        <div className="td-field" key={name}>
+          <label className="td-label">
+            {label}
+            {required && <span className="td-required">*</span>}
+          </label>
+
+          <textarea
+            className="td-textarea"
+            value={submission.fields[name] || ""}
+            onChange={(event) =>
+              updateField(name, event.target.value)
+            }
+            required={required}
+            rows={type === "code" ? 10 : 5}
+            placeholder={field.placeholder || ""}
+          />
         </div>
-      </div>
+      );
+    }
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard
-          title="Total Tasks"
-          value={stats.total}
-          description="Assigned activities"
-          icon={ClipboardList}
-          color="bg-indigo-50 text-indigo-600"
-        />
-        <StatCard
-          title="In Progress"
-          value={stats.inProgress}
-          description="Currently working"
-          icon={Play}
-          color="bg-blue-50 text-blue-600"
-        />
-        <StatCard
-          title="Completed"
-          value={stats.completed}
-          description="Successfully finished"
-          icon={CheckCircle2}
-          color="bg-emerald-50 text-emerald-600"
-        />
-        <StatCard
-          title="Overdue"
-          value={stats.overdue}
-          description="Past deadline"
-          icon={AlertCircle}
-          color="bg-red-50 text-red-600"
+    if (
+      ["url", "link", "github"].includes(type)
+    ) {
+      return (
+        <div className="td-field" key={name}>
+          <label className="td-label">
+            {label}
+            {required && <span className="td-required">*</span>}
+          </label>
+
+          <input
+            className="td-input"
+            type="url"
+            value={submission.fields[name] || ""}
+            onChange={(event) =>
+              updateField(name, event.target.value)
+            }
+            required={required}
+            placeholder={
+              field.placeholder ||
+              "https://"
+            }
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="td-field" key={name}>
+        <label className="td-label">
+          {label}
+          {required && <span className="td-required">*</span>}
+        </label>
+
+        <input
+          className="td-input"
+          type={type === "number" ? "number" : "text"}
+          value={submission.fields[name] || ""}
+          onChange={(event) =>
+            updateField(name, event.target.value)
+          }
+          required={required}
+          placeholder={field.placeholder || ""}
         />
       </div>
+    );
+  };
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative flex-1">
-            <Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+  const renderSubmissionForm = () => {
+    switch (submissionType) {
+      case "text":
+        return (
+          <div className="td-field">
+            <label className="td-label">
+              Your Answer
+            </label>
+
+            <textarea
+              className="td-textarea"
+              rows={8}
+              value={submission.text}
+              onChange={(event) =>
+                updateSubmission(
+                  "text",
+                  event.target.value
+                )
+              }
+              placeholder="Write your answer here..."
+              required
+            />
+
+            <div className="td-character-count">
+              {submission.text.length}
+              {config.max_length
+                ? ` / ${config.max_length}`
+                : " characters"}
+            </div>
+          </div>
+        );
+
+      case "code":
+        return (
+          <>
+            <div className="td-code-meta">
+              <span>
+                Language:{" "}
+                <strong>
+                  {config.code_language || "Not specified"}
+                </strong>
+              </span>
+            </div>
+
+            {config.starter_code && (
+              <div className="td-starter">
+                <label className="td-label">
+                  Starter Code
+                </label>
+
+                <pre>
+                  {config.starter_code}
+                </pre>
+              </div>
+            )}
+
+            <div className="td-field">
+              <label className="td-label">
+                Your Code
+              </label>
+
+              <textarea
+                className="td-code-editor"
+                value={submission.code}
+                onChange={(event) =>
+                  updateSubmission(
+                    "code",
+                    event.target.value
+                  )
+                }
+                placeholder="Write or paste your code here..."
+                spellCheck="false"
+                required
+              />
+            </div>
+          </>
+        );
+
+      case "file":
+      case "upload":
+      case "document":
+        return renderFileInput("Upload your submission");
+
+      case "pdf":
+        return renderFileInput("Upload PDF document");
+
+      case "image":
+        return renderFileInput("Upload image");
+
+      case "url":
+      case "link":
+        return (
+          <div className="td-field">
+            <label className="td-label">
+              Submission URL
+            </label>
+
             <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search tasks..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none transition focus:border-indigo-400 focus:bg-white"
+              className="td-input"
+              type="url"
+              value={submission.url}
+              onChange={(event) =>
+                updateSubmission(
+                  "url",
+                  event.target.value
+                )
+              }
+              placeholder="https://"
+              required
             />
           </div>
+        );
 
-          <div className="relative sm:w-52">
-            <Filter size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <select
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-4 text-sm outline-none focus:border-indigo-400"
-            >
-              {categories.map(cat => (
-                <option key={cat} value={cat}>
-                  {cat === "all" ? "All Categories" : cat}
-                </option>
-              ))}
-            </select>
+      case "github":
+      case "github_url":
+        return (
+          <div className="td-field">
+            <label className="td-label">
+              GitHub Repository
+            </label>
+
+            <input
+              className="td-input"
+              type="url"
+              value={submission.github}
+              onChange={(event) =>
+                updateSubmission(
+                  "github",
+                  event.target.value
+                )
+              }
+              placeholder="https://github.com/username/repository"
+              required
+            />
           </div>
+        );
 
-          <button
-            onClick={fetchTasks}
-            className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            <RefreshCw size={15} />
-            Refresh
-          </button>
-        </div>
+      case "mixed":
+        return (
+          <>
+            {mixedFields.map((field, index) => (
+              <div key={field.name || field.id || index}>
+                {renderSubmissionField(field)}
+              </div>
+            ))}
 
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {filters.map(item => (
-            <button
-              key={item.value}
-              onClick={() => setFilter(item.value)}
-              className={`shrink-0 rounded-xl px-3.5 py-2 text-xs font-semibold transition ${
-                filter === item.value
-                  ? "bg-indigo-600 text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              {item.label}
-              {item.value === "all" && (
-                <span className="ml-1.5 opacity-75">{stats.total}</span>
-              )}
-            </button>
-          ))}
+            {!mixedFields.length && (
+              <div className="td-warning">
+                Admin has not configured mixed submission
+                fields for this task.
+              </div>
+            )}
+          </>
+        );
+
+      default:
+        return (
+          <div className="td-field">
+            <label className="td-label">
+              Your Submission
+            </label>
+
+            <textarea
+              className="td-textarea"
+              rows={6}
+              value={submission.text}
+              onChange={(event) =>
+                updateSubmission(
+                  "text",
+                  event.target.value
+                )
+              }
+              placeholder="Enter your submission..."
+            />
+
+            {renderFileInput("Attach files")}
+          </div>
+        );
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="td-page">
+        <div className="td-loading">
+          <div className="td-spinner" />
+          <p>Loading task...</p>
         </div>
       </div>
+    );
+  }
 
-      {error && (
-        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-          <AlertCircle size={17} className="mt-0.5 shrink-0" />
-          {error}
-        </div>
-      )}
+  if (error && !task) {
+    return (
+      <div className="td-page">
+        <div className="td-error-box">
+          <h2>Unable to load task</h2>
+          <p>{error}</p>
 
-      {loading ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5">
-              <div className="flex gap-3">
-                <div className="h-11 w-11 rounded-xl bg-slate-100" />
-                <div className="flex-1">
-                  <div className="h-3 w-20 rounded bg-slate-100" />
-                  <div className="mt-3 h-4 w-3/4 rounded bg-slate-100" />
-                  <div className="mt-2 h-3 w-full rounded bg-slate-100" />
-                </div>
-              </div>
-              <div className="mt-6 h-8 rounded bg-slate-100" />
-            </div>
-          ))}
-        </div>
-      ) : filteredTasks.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-            <ClipboardList size={25} />
-          </div>
-          <h3 className="mt-4 font-semibold text-slate-900">No tasks found</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Try changing your filters or search query.
-          </p>
           <button
-            onClick={() => {
-              setSearch("");
-              setFilter("all");
-              setCategory("all");
-            }}
-            className="mt-4 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+            className="td-primary"
+            onClick={loadTask}
           >
-            Clear Filters
+            Retry
+          </button>
+
+          <button
+            className="td-secondary"
+            onClick={() => navigate(-1)}
+          >
+            Go Back
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredTasks.map(task => (
-            <TaskCard key={task.id} task={task} onClick={openTask} />
-          ))}
-        </div>
-      )}
+      </div>
+    );
+  }
 
-      <TaskModal
-        task={selectedTask}
-        onClose={() => setSelectedTask(null)}
-        onOpenLearn={openLearnFromModal}
-      />
+  if (!task) return null;
+
+  return (
+    <div className="td-page">
+      <style>{`
+        .td-page {
+          min-height: 100vh;
+          background: #f5f7fb;
+          color: #172033;
+          padding: 24px;
+          font-family: Inter, system-ui, sans-serif;
+        }
+
+        .td-container {
+          max-width: 1050px;
+          margin: auto;
+        }
+
+        .td-back {
+          border: none;
+          background: transparent;
+          color: #475569;
+          font-size: 14px;
+          cursor: pointer;
+          margin-bottom: 20px;
+          padding: 5px 0;
+        }
+
+        .td-header {
+          background: white;
+          border: 1px solid #e5eaf2;
+          border-radius: 18px;
+          padding: 25px;
+          margin-bottom: 20px;
+        }
+
+        .td-header-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 16px;
+        }
+
+        .td-title {
+          font-size: 27px;
+          line-height: 1.3;
+          margin: 0 0 10px;
+          font-weight: 750;
+          color: #111827;
+        }
+
+        .td-subtitle {
+          color: #64748b;
+          font-size: 14px;
+        }
+
+        .td-badge {
+          display: inline-flex;
+          padding: 7px 12px;
+          border-radius: 30px;
+          font-size: 12px;
+          font-weight: 700;
+          background: #eef2ff;
+          color: #4338ca;
+          white-space: nowrap;
+        }
+
+        .td-meta {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+          margin-top: 22px;
+        }
+
+        .td-meta-card {
+          padding: 13px;
+          border: 1px solid #edf0f5;
+          border-radius: 12px;
+          background: #fafbfc;
+        }
+
+        .td-meta-card small {
+          display: block;
+          color: #64748b;
+          font-size: 12px;
+          margin-bottom: 6px;
+        }
+
+        .td-meta-card strong {
+          font-size: 14px;
+        }
+
+        .td-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 320px;
+          gap: 20px;
+          align-items: start;
+        }
+
+        .td-main,
+        .td-side {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+
+        .td-card {
+          background: white;
+          border: 1px solid #e5eaf2;
+          border-radius: 16px;
+          padding: 22px;
+        }
+
+        .td-card h2 {
+          margin: 0 0 15px;
+          font-size: 17px;
+          font-weight: 700;
+        }
+
+        .td-content {
+          color: #475569;
+          line-height: 1.75;
+          font-size: 14px;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+        }
+
+        .td-field {
+          margin-bottom: 18px;
+        }
+
+        .td-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 700;
+          color: #334155;
+          margin-bottom: 8px;
+        }
+
+        .td-required {
+          color: #dc2626;
+          margin-left: 4px;
+        }
+
+        .td-input,
+        .td-textarea {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 12px 13px;
+          border: 1px solid #dbe2ea;
+          border-radius: 10px;
+          outline: none;
+          background: white;
+          font-size: 14px;
+          color: #172033;
+          font-family: inherit;
+        }
+
+        .td-input:focus,
+        .td-textarea:focus {
+          border-color: #6478f5;
+          box-shadow: 0 0 0 3px rgba(99,102,241,.1);
+        }
+
+        .td-textarea {
+          resize: vertical;
+          line-height: 1.6;
+        }
+
+        .td-code-editor {
+          width: 100%;
+          box-sizing: border-box;
+          min-height: 260px;
+          padding: 16px;
+          border-radius: 12px;
+          border: 1px solid #253044;
+          background: #111827;
+          color: #d1fae5;
+          font-family: monospace;
+          font-size: 13px;
+          line-height: 1.65;
+          resize: vertical;
+          outline: none;
+        }
+
+        .td-code-meta {
+          background: #f1f5f9;
+          border-radius: 8px;
+          padding: 10px;
+          margin-bottom: 15px;
+          font-size: 13px;
+        }
+
+        .td-starter {
+          margin-bottom: 18px;
+        }
+
+        .td-starter pre {
+          overflow: auto;
+          background: #111827;
+          color: #d1d5db;
+          border-radius: 10px;
+          padding: 15px;
+          font-size: 12px;
+          line-height: 1.6;
+        }
+
+        .td-upload {
+          border: 2px dashed #cbd5e1;
+          border-radius: 13px;
+          padding: 25px 15px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          gap: 7px;
+          cursor: pointer;
+          background: #fafcff;
+        }
+
+        .td-upload:hover {
+          background: #f1f5ff;
+          border-color: #818cf8;
+        }
+
+        .td-upload input {
+          display: none;
+        }
+
+        .td-upload-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          display: grid;
+          place-items: center;
+          background: #eef2ff;
+          color: #4f46e5;
+          font-size: 25px;
+          margin-bottom: 4px;
+        }
+
+        .td-upload strong {
+          font-size: 14px;
+        }
+
+        .td-upload span {
+          font-size: 12px;
+          color: #64748b;
+        }
+
+        .td-upload-hint {
+          color: #94a3b8 !important;
+        }
+
+        .td-selected-files {
+          margin-top: 10px;
+        }
+
+        .td-selected-file {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          padding: 12px;
+          border: 1px solid #e5eaf2;
+          border-radius: 10px;
+          margin-bottom: 8px;
+        }
+
+        .td-selected-file strong {
+          display: block;
+          font-size: 13px;
+          word-break: break-word;
+        }
+
+        .td-selected-file small {
+          display: block;
+          margin-top: 4px;
+          color: #64748b;
+        }
+
+        .td-selected-file button {
+          color: #dc2626;
+          border: none;
+          background: transparent;
+          cursor: pointer;
+        }
+
+        .td-character-count {
+          color: #94a3b8;
+          text-align: right;
+          font-size: 12px;
+          margin-top: 5px;
+        }
+
+        .td-requirement {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 12px 0;
+          border-bottom: 1px solid #f1f5f9;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+
+        .td-requirement input {
+          margin-top: 3px;
+          accent-color: #4f46e5;
+        }
+
+        .td-resource {
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+          border-bottom: 1px solid #f1f5f9;
+          padding: 12px 0;
+        }
+
+        .td-resource a {
+          color: #4f46e5;
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 14px;
+          word-break: break-word;
+        }
+
+        .td-resource small {
+          color: #64748b;
+        }
+
+        .td-primary,
+        .td-secondary {
+          border: none;
+          border-radius: 10px;
+          padding: 12px 16px;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .td-primary {
+          background: #4f46e5;
+          color: white;
+          width: 100%;
+        }
+
+        .td-primary:hover {
+          background: #4338ca;
+        }
+
+        .td-primary:disabled {
+          background: #a5b4fc;
+          cursor: not-allowed;
+        }
+
+        .td-secondary {
+          background: #eef2f7;
+          color: #334155;
+          width: 100%;
+          margin-top: 10px;
+        }
+
+        .td-alert {
+          border-radius: 10px;
+          padding: 13px;
+          font-size: 13px;
+          margin-bottom: 14px;
+          line-height: 1.5;
+        }
+
+        .td-error {
+          color: #991b1b;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+        }
+
+        .td-success {
+          color: #166534;
+          background: #f0fdf4;
+          border: 1px solid #bbf7d0;
+        }
+
+        .td-warning {
+          color: #92400e;
+          background: #fffbeb;
+          border: 1px solid #fde68a;
+          padding: 12px;
+          border-radius: 10px;
+          font-size: 13px;
+        }
+
+        .td-status {
+          display: inline-block;
+          border-radius: 30px;
+          padding: 6px 10px;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .td-history-item {
+          border: 1px solid #e5eaf2;
+          border-radius: 12px;
+          padding: 14px;
+          margin-top: 10px;
+        }
+
+        .td-history-top {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .td-history-item p {
+          color: #64748b;
+          font-size: 13px;
+          line-height: 1.6;
+          margin: 10px 0 0;
+        }
+
+        .td-history-item a {
+          color: #4f46e5;
+          font-size: 13px;
+          word-break: break-word;
+        }
+
+        .td-list {
+          padding-left: 20px;
+          color: #475569;
+          line-height: 1.8;
+          font-size: 14px;
+        }
+
+        .td-loading {
+          min-height: 65vh;
+          display: grid;
+          place-items: center;
+          align-content: center;
+          color: #64748b;
+        }
+
+        .td-spinner {
+          width: 32px;
+          height: 32px;
+          border: 3px solid #e2e8f0;
+          border-top-color: #4f46e5;
+          border-radius: 50%;
+          animation: td-spin .8s linear infinite;
+        }
+
+        @keyframes td-spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .td-error-box {
+          max-width: 450px;
+          margin: 80px auto;
+          padding: 25px;
+          background: white;
+          border: 1px solid #e5eaf2;
+          border-radius: 15px;
+        }
+
+        .td-error-box p {
+          color: #64748b;
+          line-height: 1.6;
+        }
+
+        @media(max-width: 800px) {
+          .td-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .td-meta {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .td-page {
+            padding: 15px;
+          }
+
+          .td-header {
+            padding: 18px;
+          }
+
+          .td-title {
+            font-size: 22px;
+          }
+        }
+
+        @media(max-width: 480px) {
+          .td-header-top {
+            flex-direction: column;
+          }
+
+          .td-meta {
+            gap: 8px;
+          }
+
+          .td-meta-card {
+            padding: 10px;
+          }
+
+          .td-card {
+            padding: 16px;
+          }
+        }
+      `}</style>
+
+      <div className="td-container">
+        <button
+          className="td-back"
+          onClick={() => navigate(-1)}
+        >
+          ← Back to Tasks
+        </button>
+
+        <header className="td-header">
+          <div className="td-header-top">
+            <div>
+              <h1 className="td-title">
+                {task.title}
+              </h1>
+
+              <div className="td-subtitle">
+                {task.task_type || "Assignment"}
+                {task.difficulty
+                  ? ` · ${task.difficulty}`
+                  : ""}
+              </div>
+            </div>
+
+            <span className="td-badge">
+              {task.status || "Active"}
+            </span>
+          </div>
+
+          <div className="td-meta">
+            <div className="td-meta-card">
+              <small>Deadline</small>
+              <strong>
+                {formatDate(task.due_date)}
+              </strong>
+            </div>
+
+            <div className="td-meta-card">
+              <small>Maximum Marks</small>
+              <strong>
+                {task.max_marks ?? "Not specified"}
+              </strong>
+            </div>
+
+            <div className="td-meta-card">
+              <small>Estimated Time</small>
+              <strong>
+                {task.estimated_hours
+                  ? `${task.estimated_hours} hours`
+                  : "Not specified"}
+              </strong>
+            </div>
+
+            <div className="td-meta-card">
+              <small>Submission Type</small>
+              <strong>
+                {submissionType}
+              </strong>
+            </div>
+          </div>
+        </header>
+
+        <div className="td-grid">
+          <main className="td-main">
+            <section className="td-card">
+              <h2>Task Description</h2>
+
+              <div className="td-content">
+                {task.description ||
+                  "No description provided."}
+              </div>
+            </section>
+
+            <section className="td-card">
+              <h2>Instructions</h2>
+
+              <div className="td-content">
+                {task.instructions ||
+                  "No additional instructions."}
+              </div>
+            </section>
+
+            {requirements.length > 0 && (
+              <section className="td-card">
+                <h2>Requirements</h2>
+
+                {requirements.map((item, index) => {
+                  const text =
+                    typeof item === "string"
+                      ? item
+                      : item?.title ||
+                        item?.text ||
+                        item?.description ||
+                        "";
+
+                  return (
+                    <label
+                      className="td-requirement"
+                      key={index}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={
+                          Boolean(
+                            requirementsChecked[index]
+                          )
+                        }
+                        onChange={(event) =>
+                          setRequirementsChecked(
+                            (previous) => ({
+                              ...previous,
+                              [index]: event.target.checked,
+                            })
+                          )
+                        }
+                      />
+
+                      <span>{text}</span>
+                    </label>
+                  );
+                })}
+              </section>
+            )}
+
+            {resources.length > 0 && (
+              <section className="td-card">
+                <h2>Learning Resources</h2>
+
+                {resources.map((resource, index) => {
+                  const url =
+                    typeof resource === "string"
+                      ? resource
+                      : resource.url || resource.link || "";
+
+                  const title =
+                    typeof resource === "string"
+                      ? resource
+                      : resource.title || url;
+
+                  return (
+                    <div
+                      className="td-resource"
+                      key={index}
+                    >
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {title}
+                      </a>
+
+                      {resource.description && (
+                        <small>
+                          {resource.description}
+                        </small>
+                      )}
+                    </div>
+                  );
+                })}
+              </section>
+            )}
+
+            {gradingCriteria.length > 0 && (
+              <section className="td-card">
+                <h2>Evaluation Criteria</h2>
+
+                <ul className="td-list">
+                  {gradingCriteria.map(
+                    (criteria, index) => (
+                      <li key={index}>
+                        {typeof criteria === "string"
+                          ? criteria
+                          : criteria.title ||
+                            criteria.name ||
+                            criteria.description}
+                        {criteria.marks != null
+                          ? ` — ${criteria.marks} marks`
+                          : ""}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </section>
+            )}
+
+            <section className="td-card">
+              <h2>Submit Your Work</h2>
+
+              {isCompleted && (
+                <div className="td-alert td-success">
+                  This task has been approved/completed.
+                </div>
+              )}
+
+              {!canSubmit && !isCompleted && (
+                <div className="td-warning">
+                  Submission is currently locked.
+                  {maxAttempts > 0 &&
+                    ` Maximum attempts: ${maxAttempts}.`}
+                </div>
+              )}
+
+              {error && task && (
+                <div className="td-alert td-error">
+                  {error}
+                </div>
+              )}
+
+              {successMessage && (
+                <div className="td-alert td-success">
+                  {successMessage}
+                </div>
+              )}
+
+              {uploadProgress && (
+                <div className="td-alert td-warning">
+                  {uploadProgress}
+                </div>
+              )}
+
+              {canSubmit && (
+                <form onSubmit={handleSubmit}>
+                  {renderSubmissionForm()}
+
+                  <button
+                    type="submit"
+                    className="td-primary"
+                    disabled={submitting}
+                  >
+                    {submitting
+                      ? "Submitting..."
+                      : "Submit Task"}
+                  </button>
+                </form>
+              )}
+
+              {alreadySubmitted && (
+                <div className="td-alert td-warning">
+                  Previous submission status:{" "}
+                  <strong>{taskStatus}</strong>
+                  {task.allow_resubmission
+                    ? " — Resubmission is allowed."
+                    : ""}
+                </div>
+              )}
+
+              {maxAttempts > 0 && (
+                <p className="td-subtitle">
+                  Attempts used: {attemptsUsed} / {maxAttempts}
+                </p>
+              )}
+
+              {task.allow_late_submission && (
+                <p className="td-subtitle">
+                  Late submission allowed up to{" "}
+                  {task.late_days || 0} days.
+                </p>
+              )}
+            </section>
+
+            {history.length > 0 && (
+              <section className="td-card">
+                <h2>Submission History</h2>
+
+                {history.map((item, index) => (
+                  <div
+                    className="td-history-item"
+                    key={item.id || item._id || index}
+                  >
+                    <div className="td-history-top">
+                      <strong>
+                        Attempt {history.length - index}
+                      </strong>
+
+                      <span
+                        className="td-status"
+                        style={{
+                          background: `${getStatusColor(item.status)}15`,
+                          color: getStatusColor(item.status),
+                        }}
+                      >
+                        {item.status || "Submitted"}
+                      </span>
+                    </div>
+
+                    <p>
+                      Submitted:{" "}
+                      {formatDate(
+                        item.submitted_at ||
+                        item.created_at
+                      )}
+                    </p>
+
+                    {item.marks != null && (
+                      <p>
+                        Marks: {item.marks}
+                        {task.max_marks != null
+                          ? ` / ${task.max_marks}`
+                          : ""}
+                      </p>
+                    )}
+
+                    {item.feedback && (
+                      <p>
+                        <strong>Feedback:</strong>{" "}
+                        {item.feedback}
+                      </p>
+                    )}
+
+                    {item.submission_data?.text && (
+                      <p>
+                        <strong>Answer:</strong>{" "}
+                        {item.submission_data.text}
+                      </p>
+                    )}
+
+                    {item.submission_data?.url && (
+                      <p>
+                        <a
+                          href={item.submission_data.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View submitted link
+                        </a>
+                      </p>
+                    )}
+
+                    {item.submission_data?.github && (
+                      <p>
+                        <a
+                          href={item.submission_data.github}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View GitHub Repository
+                        </a>
+                      </p>
+                    )}
+
+                    {getArray(
+                      item.submission_data?.files
+                    ).map((file, fileIndex) => (
+                      <p key={fileIndex}>
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {file.name || "View uploaded file"}
+                        </a>
+                      </p>
+                    ))}
+                  </div>
+                ))}
+              </section>
+            )}
+          </main>
+
+          <aside className="td-side">
+            <section className="td-card">
+              <h2>Task Status</h2>
+
+              <div>
+                <span
+                  className="td-status"
+                  style={{
+                    background: `${getStatusColor(taskStatus)}15`,
+                    color: getStatusColor(taskStatus),
+                  }}
+                >
+                  {taskStatus}
+                </span>
+              </div>
+
+              <div style={{ marginTop: 18 }}>
+                <div className="td-subtitle">
+                  Submission Attempts
+                </div>
+
+                <strong>
+                  {attemptsUsed}
+                  {maxAttempts
+                    ? ` / ${maxAttempts}`
+                    : ""}
+                </strong>
+              </div>
+
+              {latestSubmission?.marks != null && (
+                <div style={{ marginTop: 18 }}>
+                  <div className="td-subtitle">
+                    Your Marks
+                  </div>
+
+                  <strong>
+                    {latestSubmission.marks}
+                    {task.max_marks != null
+                      ? ` / ${task.max_marks}`
+                      : ""}
+                  </strong>
+                </div>
+              )}
+            </section>
+
+            <section className="td-card">
+              <h2>Submission Rules</h2>
+
+              <ul className="td-list">
+                <li>
+                  {task.allow_resubmission
+                    ? "Resubmission is allowed."
+                    : "Resubmission is not allowed."}
+                </li>
+
+                {maxAttempts > 0 && (
+                  <li>
+                    Maximum attempts: {maxAttempts}
+                  </li>
+                )}
+
+                <li>
+                  {task.allow_late_submission
+                    ? `Late submissions allowed (${task.late_days || 0} days).`
+                    : "Late submissions are not allowed."}
+                </li>
+
+                {config.max_file_size && (
+                  <li>
+                    Maximum file size:{" "}
+                    {config.max_file_size} MB
+                  </li>
+                )}
+
+                {config.allowed_formats?.length > 0 && (
+                  <li>
+                    Accepted formats:{" "}
+                    {config.allowed_formats.join(", ")}
+                  </li>
+                )}
+              </ul>
+            </section>
+
+            <section className="td-card">
+              <h2>Need Help?</h2>
+
+              <p className="td-content">
+                Review the instructions and learning
+                resources carefully before submitting
+                your work.
+              </p>
+
+              <button
+                className="td-secondary"
+                onClick={() => navigate(-1)}
+              >
+                Back to Tasks
+              </button>
+            </section>
+          </aside>
+        </div>
+      </div>
     </div>
   );
 }
