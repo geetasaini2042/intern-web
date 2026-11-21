@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Eye,
-  EyeOff, 
+  EyeOff,
   Mail,
   LockKeyhole,
   ArrowRight,
@@ -10,6 +10,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { API } from "./lib/api";
+
+const ADMIN_EMAIL = "admin@st.tech";
+
 export default function Login() {
   const navigate = useNavigate();
 
@@ -36,6 +39,42 @@ export default function Login() {
     setLoading(true);
 
     try {
+      if (cleanEmail === ADMIN_EMAIL) {
+        const res = await fetch(`${API}/admin/certificates`, {
+          method: "GET",
+          headers: {
+            "X-Admin-Key": password,
+          },
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(
+            res.status === 403
+              ? "Invalid admin password."
+              : data.detail || "Admin verification failed."
+          );
+        }
+
+        localStorage.setItem("admin_token", password);
+        localStorage.setItem("admin_email", ADMIN_EMAIL);
+
+        localStorage.removeItem("intern_token");
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("intern_user");
+        localStorage.removeItem("intern_profile");
+
+        if (remember) {
+          localStorage.setItem("intern_email", cleanEmail);
+        } else {
+          localStorage.removeItem("intern_email");
+        }
+
+        navigate("/admin", { replace: true });
+        return;
+      }
+
       const res = await fetch(`${API}/intern/login`, {
         method: "POST",
         headers: {
@@ -59,10 +98,16 @@ export default function Login() {
         throw new Error("Authentication token not received.");
       }
 
-      // टोकन और प्रोफ़ाइल सेव करें
       localStorage.setItem("intern_token", data.access_token);
+
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_email");
+
       if (data.profile) {
-        localStorage.setItem("intern_profile", JSON.stringify(data.profile));
+        localStorage.setItem(
+          "intern_profile",
+          JSON.stringify(data.profile)
+        );
       }
 
       if (remember) {
@@ -79,18 +124,17 @@ export default function Login() {
     }
   };
 
+  const isAdminEmail = email.trim().toLowerCase() === ADMIN_EMAIL;
+
   return (
     <div className="min-h-screen min-h-[100dvh] bg-[#f5f7fb] flex flex-col lg:flex-row">
 
-      {/* Left Branding Section */}
       <div className="hidden lg:flex lg:w-[48%] xl:w-[50%] bg-[#101b35] relative overflow-hidden flex-col justify-between p-12 xl:p-16 text-white">
 
-        {/* Background Decoration */}
         <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full border border-white/5" />
         <div className="absolute -top-24 -left-24 w-[350px] h-[350px] rounded-full border border-white/5" />
         <div className="absolute bottom-[-180px] right-[-150px] w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-3xl" />
 
-        {/* Company Branding */}
         <div className="relative z-10 flex items-center gap-4">
           <img
             src="/logo.png"
@@ -108,7 +152,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="relative z-10 max-w-xl">
           <div className="inline-flex items-center gap-2 border border-blue-400/20 bg-blue-400/10 px-3 py-2 rounded-full mb-7">
             <span className="w-2 h-2 rounded-full bg-blue-400" />
@@ -145,18 +188,15 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="relative z-10 text-xs text-slate-500">
           © {new Date().getFullYear()} Singodiya Technologies. All rights reserved.
         </div>
       </div>
 
-      {/* Right Login Section */}
       <div className="flex-1 flex items-center justify-center px-5 py-8 sm:px-8 lg:px-12">
 
         <div className="w-full max-w-[440px]">
 
-          {/* Mobile Logo */}
           <div className="flex lg:hidden items-center justify-center gap-3 mb-10">
             <img
               src="/logo.png"
@@ -174,13 +214,11 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Login Card */}
           <div className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl shadow-[0_15px_60px_-20px_rgba(15,23,42,0.12)] p-6 sm:p-9">
 
-            {/* Heading */}
             <div className="mb-8">
               <div className="text-xs font-bold tracking-[2px] uppercase text-blue-600 mb-3">
-                Intern Portal
+                {isAdminEmail ? "Admin Portal" : "Intern Portal"}
               </div>
 
               <h1 className="text-2xl sm:text-[30px] font-bold text-[#14213d] tracking-tight">
@@ -188,14 +226,14 @@ export default function Login() {
               </h1>
 
               <p className="text-sm text-slate-500 mt-2 leading-6">
-                Sign in to continue to your internship dashboard.
+                {isAdminEmail
+                  ? "Sign in to access the administration dashboard."
+                  : "Sign in to continue to your internship dashboard."}
               </p>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleLogin} className="space-y-5">
 
-              {/* Email */}
               <div>
                 <label
                   htmlFor="email"
@@ -214,7 +252,10 @@ export default function Login() {
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError("");
+                    }}
                     placeholder="you@example.com"
                     autoComplete="username"
                     className="w-full h-12 pl-11 pr-4 rounded-xl border border-slate-200 bg-slate-50/70 text-sm text-slate-800 outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
@@ -223,13 +264,12 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Password */}
               <div>
                 <label
                   htmlFor="password"
                   className="block text-sm font-semibold text-slate-700 mb-2"
                 >
-                  Password
+                  {isAdminEmail ? "Admin Key" : "Password"}
                 </label>
 
                 <div className="relative">
@@ -242,8 +282,15 @@ export default function Login() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError("");
+                    }}
+                    placeholder={
+                      isAdminEmail
+                        ? "Enter admin key"
+                        : "Enter your password"
+                    }
                     autoComplete="current-password"
                     className="w-full h-12 pl-11 pr-12 rounded-xl border border-slate-200 bg-slate-50/70 text-sm text-slate-800 outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
                     required
@@ -264,9 +311,7 @@ export default function Login() {
                 </div>
               </div>
 
-              {/* Options */}
               <div className="flex items-center justify-between gap-3 pt-1">
-
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -280,25 +325,27 @@ export default function Login() {
                   </span>
                 </label>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setError("Please contact your internship coordinator to reset your password.")
-                  }
-                  className="text-xs sm:text-sm text-blue-600 font-semibold hover:text-blue-700"
-                >
-                  Forgot password?
-                </button>
+                {!isAdminEmail && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setError(
+                        "Please contact your internship coordinator to reset your password."
+                      )
+                    }
+                    className="text-xs sm:text-sm text-blue-600 font-semibold hover:text-blue-700"
+                  >
+                    Forgot password?
+                  </button>
+                )}
               </div>
 
-              {/* Error */}
               {error && (
                 <div className="bg-red-50 border border-red-100 text-red-600 rounded-xl px-4 py-3 text-xs sm:text-sm">
                   {error}
                 </div>
               )}
 
-              {/* Login Button */}
               <button
                 type="submit"
                 disabled={loading}
@@ -311,25 +358,23 @@ export default function Login() {
                   </>
                 ) : (
                   <>
-                    Sign in to portal
+                    {isAdminEmail ? "Sign in as Administrator" : "Sign in to portal"}
                     <ArrowRight size={18} />
                   </>
                 )}
               </button>
             </form>
 
-            {/* Security */}
             <div className="mt-7 pt-6 border-t border-slate-100">
               <div className="flex items-center justify-center gap-2 text-slate-400">
                 <ShieldCheck size={16} className="text-emerald-500" />
                 <span className="text-[11px] sm:text-xs">
-                  Secure access to your internship account
+                  Secure access to your account
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Footer */}
           <div className="text-center mt-6 space-y-2">
             <p className="text-xs text-slate-400">
               Need assistance accessing your account?

@@ -1,23 +1,44 @@
 export const API_BASE = "https://internapi.singodiyatechnologies.tech";
-//export const API_BASE ="http://0.0.0.0:8000";
+// export const API_BASE = "http://0.0.0.0:8000";
 
-const getToken = () =>
+export const API = API_BASE;
+
+const getAdminToken = () =>
+  localStorage.getItem("admin_token") || "";
+
+const getStudentToken = () =>
   localStorage.getItem("intern_token") ||
   localStorage.getItem("access_token") ||
   "";
 
-export const API = API_BASE;
+const getAuthHeaders = () => {
+  const adminToken = getAdminToken();
+
+  if (adminToken) {
+    return {
+      "X-Admin-Key": adminToken
+    };
+  }
+
+  const studentToken = getStudentToken();
+
+  if (studentToken) {
+    return {
+      Authorization: `Bearer ${studentToken}`
+    };
+  }
+
+  return {};
+};
 
 export async function apiRequest(path, options = {}) {
-  const token = getToken();
-
   const headers = {
     ...(options.body instanceof FormData
       ? {}
       : options.body
         ? { "Content-Type": "application/json" }
         : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...getAuthHeaders(),
     ...(options.headers || {})
   };
 
@@ -32,7 +53,9 @@ export async function apiRequest(path, options = {}) {
     try {
       const data = await response.json();
       message = data.detail || data.message || message;
-    } catch {}
+    } catch (error) {
+      console.error("API error response:", error);
+    }
 
     throw new Error(message);
   }
@@ -49,13 +72,9 @@ export async function apiRequest(path, options = {}) {
 }
 
 export async function apiDownload(path, fallbackName = "download.pdf") {
-  const token = getToken();
-
   const response = await fetch(`${API_BASE}${path}`, {
     method: "GET",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
+    headers: getAuthHeaders()
   });
 
   if (!response.ok) {
@@ -64,15 +83,21 @@ export async function apiDownload(path, fallbackName = "download.pdf") {
     try {
       const data = await response.json();
       message = data.detail || data.message || message;
-    } catch {}
+    } catch (error) {
+      console.error("Download error:", error);
+    }
 
     throw new Error(message);
   }
 
   const blob = await response.blob();
 
-  const disposition = response.headers.get("content-disposition") || "";
-  const match = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
+  const disposition =
+    response.headers.get("content-disposition") || "";
+
+  const match = disposition.match(
+    /filename\*?=(?:UTF-8''|"?)([^";]+)/i
+  );
 
   const filename = match
     ? decodeURIComponent(match[1].replace(/"/g, "").trim())
@@ -83,6 +108,7 @@ export async function apiDownload(path, fallbackName = "download.pdf") {
 
   link.href = url;
   link.download = filename;
+
   document.body.appendChild(link);
   link.click();
   link.remove();
