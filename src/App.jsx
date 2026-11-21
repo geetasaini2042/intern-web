@@ -54,7 +54,12 @@ const pageTitles = {
   "/dash/settings": "Settings"
 };
 
-const getToken = () =>
+/* AUTH HELPERS */
+
+const getAdminToken = () =>
+  localStorage.getItem("admin_token") || "";
+
+const getStudentToken = () =>
   localStorage.getItem("intern_token") ||
   localStorage.getItem("access_token") ||
   "";
@@ -68,26 +73,37 @@ const getStoredUser = () => {
   }
 };
 
-const getUserRole = user =>
+const getUserRole = (user) =>
   String(user?.role || user?.designation || "")
     .trim()
     .toLowerCase();
 
-const getHomeRoute = () => {
-  const user = getStoredUser();
-  const role = getUserRole(user);
+const isAdminLoggedIn = () => Boolean(getAdminToken());
 
-  if (role === "admin" || role === "administrator") {
+const isStudentLoggedIn = () => Boolean(getStudentToken());
+
+const getHomeRoute = () => {
+  if (isAdminLoggedIn()) {
     return "/admin";
   }
 
-  return "/dash";
+  if (isStudentLoggedIn()) {
+    return "/dash";
+  }
+
+  return "/login";
 };
 
-function RequireAuth() {
+/* ADMIN PROTECTION */
+
+function RequireAdmin() {
   const location = useLocation();
 
-  if (!getToken()) {
+  if (!isAdminLoggedIn()) {
+    if (isStudentLoggedIn()) {
+      return <Navigate to="/dash" replace />;
+    }
+
     return (
       <Navigate
         to="/login"
@@ -100,13 +116,43 @@ function RequireAuth() {
   return <Outlet />;
 }
 
+/* STUDENT PROTECTION */
+
+function RequireStudent() {
+  const location = useLocation();
+
+  if (!isStudentLoggedIn()) {
+    if (isAdminLoggedIn()) {
+      return <Navigate to="/admin" replace />;
+    }
+
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location }}
+      />
+    );
+  }
+
+  return <Outlet />;
+}
+
+/* GUEST LOGIN PAGE */
+
 function GuestOnly() {
-  if (getToken()) {
-    return <Navigate to={getHomeRoute()} replace />;
+  if (isAdminLoggedIn()) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  if (isStudentLoggedIn()) {
+    return <Navigate to="/dash" replace />;
   }
 
   return <Login />;
 }
+
+/* STUDENT LAYOUT */
 
 function DashboardLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -127,7 +173,7 @@ function DashboardLayout() {
       setUser(stored);
       setPhotoError(false);
 
-      if (!getToken()) return;
+      if (!getStudentToken()) return;
 
       try {
         let response;
@@ -274,6 +320,8 @@ function DashboardLayout() {
   );
 }
 
+/* PLACEHOLDER */
+
 function PlaceholderPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -311,21 +359,21 @@ function PlaceholderPage() {
   );
 }
 
+/* MAIN APP */
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* Login */}
+        {/* LOGIN */}
         <Route
           path="/login"
           element={<GuestOnly />}
         />
 
-        {/* Protected Routes */}
-        <Route element={<RequireAuth />}>
-
-          {/* Admin */}
+        {/* ADMIN ROUTES */}
+        <Route element={<RequireAdmin />}>
           <Route
             path="/admin"
             element={<AdminPanel />}
@@ -410,8 +458,10 @@ export default function App() {
               element={<Navigate to="/admin" replace />}
             />
           </Route>
+        </Route>
 
-          {/* Student Dashboard */}
+        {/* STUDENT ROUTES */}
+        <Route element={<RequireStudent />}>
           <Route
             path="/dash"
             element={<DashboardLayout />}
@@ -481,29 +531,18 @@ export default function App() {
               element={<Navigate to="/dash" replace />}
             />
           </Route>
-
         </Route>
 
-        {/* Root */}
+        {/* ROOT */}
         <Route
           path="/"
-          element={
-            <Navigate
-              to={getToken() ? getHomeRoute() : "/login"}
-              replace
-            />
-          }
+          element={<Navigate to={getHomeRoute()} replace />}
         />
 
-        {/* Global fallback */}
+        {/* FALLBACK */}
         <Route
           path="*"
-          element={
-            <Navigate
-              to={getToken() ? getHomeRoute() : "/login"}
-              replace
-            />
-          }
+          element={<Navigate to={getHomeRoute()} replace />}
         />
 
       </Routes>
