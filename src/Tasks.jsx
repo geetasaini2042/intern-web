@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { apiGet } from "./lib/api";
 import {
   Search,
-  Filter,
   ClipboardList,
   Clock,
   CheckCircle2,
@@ -13,305 +12,243 @@ import {
   CalendarDays,
   BookOpen,
   RefreshCw,
-  FileText,
   Trophy,
   X,
-  ChevronDown,
+  Filter,
   ListTodo
 } from "lucide-react";
 
-const getTasksArray = (data) => {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.tasks)) return data.tasks;
-  if (Array.isArray(data?.data)) return data.data;
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.results)) return data.results;
-  return [];
+const getTasks = (res) => {
+  if (Array.isArray(res)) return res;
+  return res?.tasks || res?.data?.tasks || res?.data || [];
 };
 
-const getId = (task) => task?._id || task?.id || task?.task_id;
+const taskId = (task) => task?.id || task?._id || task?.task_id;
 
-const getTitle = (task) =>
-  task?.title || task?.name || task?.task_name || "Untitled Task";
+const taskTitle = (task) => task?.title || "Untitled Task";
 
-const getDescription = (task) =>
-  task?.description || task?.details || task?.instructions || "";
+const taskDescription = (task) =>
+  task?.description || task?.instructions || "No description available.";
 
-const getDueDate = (task) =>
-  task?.due_date || task?.deadline || task?.dueDate || task?.end_date || null;
-
-const getStartDate = (task) =>
-  task?.start_date || task?.startDate || task?.available_from || null;
-
-const getSubject = (task) =>
-  task?.subject ||
-  task?.course ||
-  task?.course_name ||
+const taskSubject = (task) =>
+  task?.program_name ||
+  task?.batch_name ||
   task?.category ||
-  "General";
+  task?.task_type ||
+  "Assignment";
 
-const getMarks = (task) =>
-  task?.total_marks ??
-  task?.marks ??
-  task?.max_marks ??
-  task?.points ??
-  null;
+const taskStatus = (task) => {
+  const status = String(
+    task?.student_status || task?.status || "pending"
+  ).toLowerCase().replace(/\s+/g, "_");
 
-const getSubmission = (task) =>
-  task?.submission ||
-  task?.my_submission ||
-  task?.student_submission ||
-  null;
+  if (status === "approved" || status === "graded") return "completed";
+  if (status === "submitted") return "submitted";
+  if (status === "completed") return "completed";
+  if (status === "in_progress" || status === "inprogress") return "in_progress";
 
-const isSubmitted = (task) => {
-  const submission = getSubmission(task);
+  const due = task?.due_date;
+  if (due && new Date(due).getTime() < Date.now()) {
+    return "overdue";
+  }
 
-  if (submission) return true;
-
-  return (
-    task?.submitted === true ||
-    task?.is_submitted === true ||
-    task?.status === "submitted" ||
-    task?.status === "completed" ||
-    task?.status === "graded"
-  );
-};
-
-const isGraded = (task) =>
-  task?.status === "graded" ||
-  task?.status === "completed" ||
-  task?.graded === true ||
-  task?.is_graded === true;
-
-const isOverdue = (task) => {
-  const due = getDueDate(task);
-
-  if (!due || isSubmitted(task)) return false;
-
-  return new Date(due).getTime() < Date.now();
-};
-
-const formatDate = (date) => {
-  if (!date) return "No deadline";
-
-  const parsed = new Date(date);
-
-  if (isNaN(parsed.getTime())) return "No deadline";
-
-  return parsed.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric"
-  });
-};
-
-const formatTime = (date) => {
-  if (!date) return "";
-
-  const parsed = new Date(date);
-
-  if (isNaN(parsed.getTime())) return "";
-
-  return parsed.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-};
-
-const getTimeRemaining = (date) => {
-  if (!date) return "No deadline";
-
-  const difference = new Date(date).getTime() - Date.now();
-
-  if (difference <= 0) return "Deadline passed";
-
-  const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-  const hours = Math.floor(
-    (difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
-  );
-
-  if (days > 0) return `${days}d ${hours}h remaining`;
-  if (hours > 0) return `${hours}h remaining`;
-
-  const minutes = Math.floor(difference / (1000 * 60));
-
-  return `${Math.max(minutes, 1)}m remaining`;
-};
-
-const getTaskStatus = (task) => {
-  if (isGraded(task)) return "graded";
-  if (isSubmitted(task)) return "submitted";
-  if (isOverdue(task)) return "overdue";
-
-  const startDate = getStartDate(task);
-
-  if (startDate && new Date(startDate).getTime() > Date.now()) {
+  const start = task?.start_date;
+  if (start && new Date(start).getTime() > Date.now()) {
     return "upcoming";
   }
 
   return "pending";
 };
 
-const statusInfo = {
+const dateFormat = (value) => {
+  if (!value) return "No deadline";
+
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "No deadline";
+
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
+};
+
+const remainingTime = (value) => {
+  if (!value) return "No deadline";
+
+  const diff = new Date(value).getTime() - Date.now();
+  if (diff <= 0) return "Deadline passed";
+
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+
+  if (days > 0) return `${days} days ${hours} hours remaining`;
+  if (hours > 0) return `${hours} hours remaining`;
+
+  const minutes = Math.max(1, Math.floor(diff / 60000));
+  return `${minutes} minutes remaining`;
+};
+
+const statusStyles = {
   pending: {
     label: "Pending",
-    color: "#f59e0b",
-    background: "rgba(245,158,11,0.10)"
+    color: "#b7791f",
+    bg: "#fff7e6"
+  },
+  in_progress: {
+    label: "In Progress",
+    color: "#2563eb",
+    bg: "#eff6ff"
   },
   submitted: {
     label: "Submitted",
-    color: "#38bdf8",
-    background: "rgba(56,189,248,0.10)"
+    color: "#0284c7",
+    bg: "#eaf7ff"
   },
-  graded: {
+  completed: {
     label: "Completed",
-    color: "#34d399",
-    background: "rgba(52,211,153,0.10)"
+    color: "#15803d",
+    bg: "#eaf8ef"
   },
   overdue: {
     label: "Overdue",
-    color: "#f87171",
-    background: "rgba(248,113,113,0.10)"
+    color: "#dc2626",
+    bg: "#fff0f0"
   },
   upcoming: {
     label: "Upcoming",
-    color: "#a78bfa",
-    background: "rgba(167,139,250,0.10)"
+    color: "#7c3aed",
+    bg: "#f5f0ff"
   }
 };
 
-const TaskCard = ({ task, onClick }) => {
-  const status = getTaskStatus(task);
-  const info = statusInfo[status];
-  const dueDate = getDueDate(task);
-  const marks = getMarks(task);
+function TaskCard({ task, onClick }) {
+  const status = taskStatus(task);
+  const style = statusStyles[status] || statusStyles.pending;
+  const deadline = task.due_date;
+  const marks = task.max_marks;
+  const progress = Number(task.progress || 0);
 
   return (
-    <article className="st-card" onClick={onClick}>
-      <div className="st-card-top">
-        <div className="st-subject">
+    <article className="task-card" onClick={onClick}>
+      <div className="task-card-top">
+        <span className="task-category">
           <BookOpen size={14} />
-          <span>{getSubject(task)}</span>
-        </div>
+          {taskSubject(task)}
+        </span>
 
-        <div
-          className="st-status"
+        <span
+          className="task-status"
           style={{
-            color: info.color,
-            background: info.background
+            color: style.color,
+            background: style.bg
           }}
         >
-          <span className="st-status-dot" />
-          {info.label}
-        </div>
+          <span className="task-status-dot" />
+          {style.label}
+        </span>
       </div>
 
-      <div className="st-card-content">
-        <h3>{getTitle(task)}</h3>
+      <h3>{taskTitle(task)}</h3>
 
-        <p className="st-description">
-          {getDescription(task) || "Complete this task and submit your work."}
-        </p>
-      </div>
+      <p className="task-description">
+        {taskDescription(task)}
+      </p>
 
-      <div className="st-card-meta">
-        <div className="st-meta-item">
+      <div className="task-meta">
+        <div>
           <CalendarDays size={15} />
-          <span>
-            {dueDate ? formatDate(dueDate) : "No deadline"}
-          </span>
+          <span>{dateFormat(deadline)}</span>
         </div>
 
         {marks !== null && marks !== undefined && (
-          <div className="st-meta-item">
+          <div>
             <Trophy size={15} />
-            <span>{marks} marks</span>
+            <span>{marks} Marks</span>
           </div>
         )}
       </div>
 
-      {status === "pending" && dueDate && (
-        <div className="st-deadline">
+      {status === "pending" && deadline && (
+        <div className="task-deadline">
           <Clock size={14} />
-          <span>{getTimeRemaining(dueDate)}</span>
+          {remainingTime(deadline)}
         </div>
       )}
 
       {status === "overdue" && (
-        <div className="st-deadline overdue">
+        <div className="task-deadline overdue">
           <AlertCircle size={14} />
-          <span>Deadline has passed</span>
+          Deadline has passed
         </div>
       )}
 
       {status === "submitted" && (
-        <div className="st-deadline submitted">
+        <div className="task-deadline submitted">
           <CheckCircle2 size={14} />
-          <span>Submission received</span>
+          Submission received
         </div>
       )}
 
-      {status === "graded" && (
-        <div className="st-deadline graded">
+      {status === "completed" && (
+        <div className="task-deadline completed">
           <Trophy size={14} />
-          <span>Task evaluated</span>
+          Task completed
         </div>
       )}
 
-      <div className="st-card-footer">
+      {status === "in_progress" && (
+        <div className="task-progress-wrap">
+          <div className="task-progress-info">
+            <span>Progress</span>
+            <span>{progress}%</span>
+          </div>
+
+          <div className="task-progress-bar">
+            <div style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      )}
+
+      <div className="task-card-footer">
         <span>
-          {status === "graded"
-            ? "View result"
-            : status === "submitted"
+          {status === "submitted"
             ? "View submission"
+            : status === "completed"
+            ? "View task"
             : "Open task"}
         </span>
 
-        <ArrowRight size={17} className="st-arrow" />
+        <ArrowRight size={17} />
       </div>
     </article>
   );
-};
+}
 
 export default function Tasks() {
   const navigate = useNavigate();
 
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("deadline");
-  const [refreshing, setRefreshing] = useState(false);
 
-  const loadTasks = async () => {
+  const loadTasks = async (showLoading = true) => {
     try {
       setError("");
-      setLoading(true);
 
-      const response = await apiGet("/dash/tasks");
-      const taskList = getTasksArray(response);
+      if (showLoading) setLoading(true);
 
-      setTasks(taskList);
-    } catch (err) {
-      console.error("Tasks loading error:", err);
-      setError(err?.message || "Unable to load tasks.");
+      const response = await apiGet("/intern/tasks");
+      setTasks(getTasks(response));
+    } catch (e) {
+      console.error("Tasks API error:", e);
+      setError(e?.message || "Unable to load tasks.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const refreshTasks = async () => {
-    try {
-      setRefreshing(true);
-
-      const response = await apiGet("/dash/tasks");
-      setTasks(getTasksArray(response));
-      setError("");
-    } catch (err) {
-      console.error("Tasks refresh error:", err);
-      setError(err?.message || "Unable to refresh tasks.");
-    } finally {
       setRefreshing(false);
     }
   };
@@ -320,479 +257,423 @@ export default function Tasks() {
     loadTasks();
   }, []);
 
+  const refresh = () => {
+    setRefreshing(true);
+    loadTasks(false);
+  };
+
   const stats = useMemo(() => {
-    const total = tasks.length;
-
-    const completed = tasks.filter(
-      (task) => isGraded(task)
-    ).length;
-
-    const submitted = tasks.filter(
-      (task) => isSubmitted(task) && !isGraded(task)
-    ).length;
-
-    const overdue = tasks.filter(
-      (task) => isOverdue(task)
-    ).length;
-
-    const pending = tasks.filter(
-      (task) =>
-        !isSubmitted(task) &&
-        !isOverdue(task) &&
-        getTaskStatus(task) !== "upcoming"
-    ).length;
-
     return {
-      total,
-      completed,
-      submitted,
-      overdue,
-      pending
+      total: tasks.length,
+      pending: tasks.filter(t =>
+        ["pending", "in_progress"].includes(taskStatus(t))
+      ).length,
+      submitted: tasks.filter(t => taskStatus(t) === "submitted").length,
+      completed: tasks.filter(t => taskStatus(t) === "completed").length,
+      overdue: tasks.filter(t => taskStatus(t) === "overdue").length
     };
   }, [tasks]);
 
-  const filteredTasks = useMemo(() => {
-    let result = [...tasks];
+  const filtered = useMemo(() => {
+    let list = [...tasks];
 
     if (filter !== "all") {
-      result = result.filter(
-        (task) => getTaskStatus(task) === filter
-      );
+      list = list.filter(t => taskStatus(t) === filter);
     }
 
     if (search.trim()) {
-      const query = search.toLowerCase().trim();
+      const q = search.toLowerCase();
 
-      result = result.filter((task) => {
-        const searchable = [
-          getTitle(task),
-          getDescription(task),
-          getSubject(task),
-          task?.teacher,
-          task?.instructor
+      list = list.filter(t =>
+        [
+          task.title,
+          task.description,
+          task.instructions,
+          task.category,
+          task.task_type,
+          task.program_name,
+          task.batch_name
         ]
           .filter(Boolean)
           .join(" ")
-          .toLowerCase();
-
-        return searchable.includes(query);
-      });
+          .toLowerCase()
+          .includes(q)
+      );
     }
 
     if (sort === "deadline") {
-      result.sort((a, b) => {
-        const dateA = getDueDate(a)
-          ? new Date(getDueDate(a)).getTime()
+      list.sort((a, b) => {
+        const da = a.due_date
+          ? new Date(a.due_date).getTime()
           : Infinity;
 
-        const dateB = getDueDate(b)
-          ? new Date(getDueDate(b)).getTime()
+        const db = b.due_date
+          ? new Date(b.due_date).getTime()
           : Infinity;
 
-        return dateA - dateB;
+        return da - db;
       });
+    } else if (sort === "newest") {
+      list.sort((a, b) =>
+        new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      );
+    } else if (sort === "oldest") {
+      list.sort((a, b) =>
+        new Date(a.created_at || 0) - new Date(b.created_at || 0)
+      );
     }
 
-    if (sort === "newest") {
-      result.sort((a, b) => {
-        const dateA = new Date(
-          a?.created_at || a?.createdAt || 0
-        ).getTime();
-
-        const dateB = new Date(
-          b?.created_at || b?.createdAt || 0
-        ).getTime();
-
-        return dateB - dateA;
-      });
-    }
-
-    if (sort === "oldest") {
-      result.sort((a, b) => {
-        const dateA = new Date(
-          a?.created_at || a?.createdAt || 0
-        ).getTime();
-
-        const dateB = new Date(
-          b?.created_at || b?.createdAt || 0
-        ).getTime();
-
-        return dateA - dateB;
-      });
-    }
-
-    return result;
+    return list;
   }, [tasks, filter, search, sort]);
 
   const openTask = (task) => {
-    const id = getId(task);
-
-    if (!id) {
-      console.error("Task ID missing:", task);
-      return;
-    }
+    const id = taskId(task);
+    if (!id) return;
 
     navigate(`/dash/tasks/${id}`);
   };
 
   const filters = [
-    { id: "all", label: "All Tasks", count: stats.total },
-    { id: "pending", label: "Pending", count: stats.pending },
-    { id: "submitted", label: "Submitted", count: stats.submitted },
-    { id: "graded", label: "Completed", count: stats.completed },
-    { id: "overdue", label: "Overdue", count: stats.overdue }
+    { key: "all", label: "All Tasks", count: stats.total },
+    { key: "pending", label: "Pending", count: stats.pending },
+    { key: "in_progress", label: "In Progress", count: tasks.filter(t => taskStatus(t) === "in_progress").length },
+    { key: "submitted", label: "Submitted", count: stats.submitted },
+    { key: "completed", label: "Completed", count: stats.completed },
+    { key: "overdue", label: "Overdue", count: stats.overdue }
   ];
 
-  const completionPercentage =
-    stats.total > 0
-      ? Math.round((stats.completed / stats.total) * 100)
-      : 0;
+  const completion = stats.total
+    ? Math.round((stats.completed / stats.total) * 100)
+    : 0;
 
   return (
-    <div className="student-tasks">
+    <div className="tasks-page">
       <style>{`
-        .student-tasks {
+        .tasks-page {
           min-height: 100vh;
-          background: #0b0d12;
-          color: #f1f5f9;
+          background: #f7f8fc;
+          color: #202938;
           padding: 28px;
-          font-family: Inter, system-ui, -apple-system, sans-serif;
+          font-family: Inter, system-ui, sans-serif;
+        }
+
+        .tasks-page * {
           box-sizing: border-box;
         }
 
-        .student-tasks * {
-          box-sizing: border-box;
-        }
-
-        .st-container {
+        .tasks-container {
           max-width: 1250px;
-          margin: 0 auto;
+          margin: auto;
         }
 
-        .st-header {
+        .tasks-header {
           display: flex;
-          justify-content: space-between;
           align-items: flex-start;
-          gap: 20px;
-          margin-bottom: 28px;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 26px;
         }
 
-        .st-heading h1 {
+        .tasks-header h1 {
+          margin: 0 0 8px;
           font-size: 29px;
           font-weight: 750;
-          margin: 0 0 9px;
-          letter-spacing: -0.8px;
+          letter-spacing: -0.7px;
+          color: #172033;
         }
 
-        .st-heading p {
+        .tasks-header p {
           margin: 0;
-          color: #8993a5;
           font-size: 14px;
-          line-height: 1.6;
+          color: #758096;
         }
 
-        .st-refresh {
-          height: 42px;
-          padding: 0 14px;
-          border: 1px solid #252b36;
-          border-radius: 10px;
-          background: #141821;
-          color: #cbd5e1;
+        .tasks-refresh {
           display: flex;
           align-items: center;
           gap: 8px;
+          height: 42px;
+          padding: 0 14px;
+          border: 1px solid #e1e5ee;
+          background: #fff;
+          border-radius: 10px;
+          color: #344054;
           cursor: pointer;
-          font-size: 13px;
           font-weight: 600;
-          transition: 0.2s;
+          font-size: 13px;
         }
 
-        .st-refresh:hover {
-          border-color: #5265e8;
-          color: #fff;
-          background: #1a2030;
+        .tasks-refresh:hover {
+          background: #f1f4f9;
         }
 
-        .st-refresh:disabled {
-          opacity: 0.6;
+        .tasks-refresh:disabled {
+          opacity: .6;
           cursor: wait;
         }
 
-        .st-stats {
+        .tasks-stats {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 15px;
-          margin-bottom: 28px;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          margin-bottom: 23px;
         }
 
-        .st-stat {
-          background: #12161e;
-          border: 1px solid #222834;
-          border-radius: 15px;
+        .tasks-stat {
+          background: #fff;
+          border: 1px solid #e8ebf2;
+          border-radius: 14px;
           padding: 19px;
-          min-height: 117px;
+          box-shadow: 0 2px 7px rgba(20,30,50,.025);
         }
 
-        .st-stat-top {
+        .tasks-stat-top {
           display: flex;
-          justify-content: space-between;
           align-items: center;
-          margin-bottom: 15px;
+          justify-content: space-between;
+          margin-bottom: 14px;
         }
 
-        .st-stat-label {
+        .tasks-stat-label {
+          color: #758096;
           font-size: 12px;
-          color: #939daf;
           font-weight: 600;
         }
 
-        .st-stat-icon {
-          width: 33px;
-          height: 33px;
+        .tasks-stat-icon {
+          width: 34px;
+          height: 34px;
           display: flex;
           align-items: center;
           justify-content: center;
           border-radius: 9px;
         }
 
-        .st-stat-value {
+        .tasks-stat-value {
           font-size: 27px;
           font-weight: 750;
-          letter-spacing: -0.6px;
+          color: #202938;
         }
 
-        .st-stat-sub {
-          font-size: 11px;
-          color: #758093;
+        .tasks-stat-sub {
           margin-top: 5px;
+          color: #98a1b2;
+          font-size: 11px;
         }
 
-        .st-progress-card {
-          border: 1px solid #252c38;
-          border-radius: 15px;
-          background: linear-gradient(115deg, #141922, #121720);
-          padding: 20px 22px;
-          margin-bottom: 28px;
+        .tasks-completion {
+          background: #fff;
+          border: 1px solid #e8ebf2;
+          border-radius: 14px;
+          padding: 20px;
+          margin-bottom: 25px;
         }
 
-        .st-progress-top {
+        .tasks-completion-head {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 13px;
-          gap: 15px;
-        }
-
-        .st-progress-title {
-          font-size: 14px;
+          margin-bottom: 12px;
+          font-size: 13px;
           font-weight: 650;
         }
 
-        .st-progress-value {
-          font-size: 13px;
-          font-weight: 700;
-          color: #a5b4fc;
+        .tasks-completion-head span:last-child {
+          color: #5b67d8;
         }
 
-        .st-progress-track {
+        .tasks-completion-track {
           height: 8px;
-          width: 100%;
-          border-radius: 99px;
-          background: #252b36;
+          border-radius: 20px;
+          background: #edf0f6;
           overflow: hidden;
         }
 
-        .st-progress-fill {
+        .tasks-completion-fill {
           height: 100%;
-          background: linear-gradient(90deg, #6577ff, #8b9aff);
-          border-radius: 99px;
-          transition: width 0.4s;
+          background: #6475e8;
+          border-radius: 20px;
+          transition: width .3s;
         }
 
-        .st-toolbar {
+        .tasks-toolbar {
           display: flex;
+          gap: 12px;
           align-items: center;
           justify-content: space-between;
-          gap: 15px;
-          margin-bottom: 19px;
+          margin-bottom: 18px;
           flex-wrap: wrap;
         }
 
-        .st-search {
+        .tasks-search {
           position: relative;
           flex: 1;
-          max-width: 360px;
+          max-width: 380px;
           min-width: 200px;
         }
 
-        .st-search input {
+        .tasks-search input {
           width: 100%;
           height: 44px;
-          border-radius: 11px;
-          background: #131821;
-          border: 1px solid #252c38;
+          background: #fff;
+          border: 1px solid #e1e5ee;
+          border-radius: 10px;
           outline: none;
-          padding: 0 40px;
-          color: #f1f5f9;
+          padding: 0 38px;
+          color: #202938;
           font-size: 13px;
-          transition: border 0.2s;
         }
 
-        .st-search input:focus {
-          border-color: #6475ef;
+        .tasks-search input:focus {
+          border-color: #8995ee;
+          box-shadow: 0 0 0 3px rgba(100,117,232,.08);
         }
 
-        .st-search input::placeholder {
-          color: #687386;
+        .tasks-search input::placeholder {
+          color: #9ba4b3;
         }
 
-        .st-search-icon {
+        .tasks-search-icon {
           position: absolute;
-          top: 14px;
           left: 13px;
-          color: #748094;
+          top: 14px;
+          color: #97a0af;
         }
 
-        .st-search-clear {
+        .tasks-clear {
           position: absolute;
-          right: 12px;
+          right: 11px;
           top: 12px;
+          background: none;
           border: 0;
-          background: transparent;
-          color: #8893a5;
+          color: #8b95a5;
           cursor: pointer;
-          padding: 2px;
         }
 
-        .st-sort {
-          height: 44px;
+        .tasks-sort {
           display: flex;
           align-items: center;
-          gap: 9px;
-          border: 1px solid #252c38;
-          background: #131821;
-          border-radius: 11px;
+          gap: 8px;
+          height: 44px;
+          background: #fff;
+          border: 1px solid #e1e5ee;
+          border-radius: 10px;
           padding: 0 12px;
-          color: #9ba6b7;
+          color: #758096;
           font-size: 13px;
         }
 
-        .st-sort select {
-          color: #e2e8f0;
+        .tasks-sort select {
           background: transparent;
-          border: none;
-          outline: none;
+          color: #344054;
+          border: 0;
+          outline: 0;
           cursor: pointer;
           font-size: 13px;
         }
 
-        .st-sort select option {
-          background: #131821;
+        .tasks-sort select option {
+          background: #fff;
         }
 
-        .st-filters {
+        .tasks-filters {
           display: flex;
           gap: 8px;
           overflow-x: auto;
-          padding-bottom: 6px;
-          margin-bottom: 22px;
-          scrollbar-width: thin;
+          padding-bottom: 5px;
+          margin-bottom: 19px;
         }
 
-        .st-filter {
-          border: 1px solid #252c38;
-          background: #12161e;
-          border-radius: 9px;
-          color: #939daf;
-          padding: 10px 13px;
+        .tasks-filter {
           display: flex;
           align-items: center;
           gap: 8px;
-          cursor: pointer;
           white-space: nowrap;
+          background: #fff;
+          border: 1px solid #e3e7ef;
+          color: #687387;
+          border-radius: 9px;
+          padding: 9px 12px;
           font-size: 12px;
           font-weight: 600;
-          transition: 0.2s;
+          cursor: pointer;
         }
 
-        .st-filter:hover {
-          border-color: #475569;
-          color: #e2e8f0;
+        .tasks-filter:hover {
+          background: #f3f5fa;
         }
 
-        .st-filter.active {
-          background: rgba(99,102,241,0.12);
-          border-color: #5969dc;
-          color: #a5b4fc;
+        .tasks-filter.active {
+          background: #eef0ff;
+          border-color: #c9ceff;
+          color: #505fce;
         }
 
-        .st-filter-count {
+        .tasks-filter-count {
+          background: #f0f2f7;
+          color: #778196;
           min-width: 19px;
           height: 19px;
+          border-radius: 6px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          background: #252b36;
-          border-radius: 6px;
-          font-size: 10px;
           padding: 0 5px;
+          font-size: 10px;
         }
 
-        .st-filter.active .st-filter-count {
-          background: rgba(99,102,241,0.22);
+        .tasks-filter.active .tasks-filter-count {
+          background: #dfe3ff;
+          color: #505fce;
         }
 
-        .st-grid {
+        .tasks-grid {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 16px;
         }
 
-        .st-card {
-          border: 1px solid #252c38;
-          background: #12161e;
-          border-radius: 15px;
+        .task-card {
+          background: #fff;
+          border: 1px solid #e7eaf1;
+          border-radius: 14px;
           padding: 19px;
           cursor: pointer;
-          transition: transform 0.2s, border-color 0.2s, background 0.2s;
-          min-width: 0;
+          transition: .2s ease;
+          box-shadow: 0 2px 6px rgba(20,30,50,.025);
         }
 
-        .st-card:hover {
+        .task-card:hover {
+          border-color: #c5cbf7;
+          box-shadow: 0 7px 20px rgba(43,55,100,.07);
           transform: translateY(-2px);
-          border-color: #4654a5;
-          background: #151a24;
         }
 
-        .st-card-top {
+        .task-card-top {
           display: flex;
-          justify-content: space-between;
           align-items: center;
-          gap: 12px;
+          justify-content: space-between;
+          gap: 10px;
           margin-bottom: 17px;
         }
 
-        .st-subject {
-          color: #a5b4fc;
-          background: rgba(99,102,241,0.09);
-          border: 1px solid rgba(99,102,241,0.17);
-          border-radius: 7px;
+        .task-category {
           display: flex;
           align-items: center;
           gap: 6px;
+          color: #5969ce;
+          background: #f0f2ff;
+          border: 1px solid #e3e6ff;
           padding: 6px 9px;
+          border-radius: 7px;
           font-size: 11px;
           font-weight: 600;
-          min-width: 0;
-        }
-
-        .st-subject span {
           overflow: hidden;
-          text-overflow: ellipsis;
           white-space: nowrap;
+          text-overflow: ellipsis;
         }
 
-        .st-status {
+        .task-status {
           display: flex;
           align-items: center;
           gap: 6px;
@@ -803,470 +684,419 @@ export default function Tasks() {
           white-space: nowrap;
         }
 
-        .st-status-dot {
+        .task-status-dot {
           width: 6px;
           height: 6px;
-          background: currentColor;
           border-radius: 50%;
+          background: currentColor;
         }
 
-        .st-card-content h3 {
-          font-size: 17px;
-          font-weight: 700;
-          line-height: 1.45;
+        .task-card h3 {
+          font-size: 16px;
+          line-height: 1.5;
           margin: 0 0 8px;
-          color: #e9edf5;
+          font-weight: 700;
+          color: #202938;
           word-break: break-word;
         }
 
-        .st-description {
+        .task-description {
           font-size: 12px;
-          color: #8994a6;
+          color: #7b8597;
           line-height: 1.7;
           margin: 0;
+          min-height: 40px;
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
-          min-height: 40px;
         }
 
-        .st-card-meta {
+        .task-meta {
           display: flex;
-          align-items: center;
           gap: 18px;
-          margin-top: 19px;
           flex-wrap: wrap;
+          margin-top: 18px;
         }
 
-        .st-meta-item {
+        .task-meta div {
           display: flex;
           align-items: center;
           gap: 7px;
-          color: #929daf;
           font-size: 12px;
+          color: #778196;
         }
 
-        .st-meta-item svg {
-          color: #6d7a90;
+        .task-meta svg {
+          color: #98a2b3;
         }
 
-        .st-deadline {
+        .task-deadline {
           display: flex;
           align-items: center;
           gap: 6px;
           margin-top: 13px;
           font-size: 11px;
-          color: #fbbf24;
+          color: #b7791f;
         }
 
-        .st-deadline.overdue {
-          color: #f87171;
+        .task-deadline.overdue {
+          color: #dc2626;
         }
 
-        .st-deadline.submitted {
-          color: #38bdf8;
+        .task-deadline.submitted {
+          color: #0284c7;
         }
 
-        .st-deadline.graded {
-          color: #34d399;
+        .task-deadline.completed {
+          color: #15803d;
         }
 
-        .st-card-footer {
-          border-top: 1px solid #232a35;
-          margin-top: 17px;
-          padding-top: 14px;
+        .task-progress-wrap {
+          margin-top: 15px;
+        }
+
+        .task-progress-info {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          color: #758096;
+          margin-bottom: 7px;
+        }
+
+        .task-progress-bar {
+          height: 6px;
+          background: #edf0f6;
+          border-radius: 20px;
+          overflow: hidden;
+        }
+
+        .task-progress-bar div {
+          height: 100%;
+          background: #6480e8;
+          border-radius: 20px;
+        }
+
+        .task-card-footer {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          color: #a5b4fc;
+          border-top: 1px solid #edf0f5;
+          margin-top: 17px;
+          padding-top: 14px;
+          color: #5969ce;
           font-size: 12px;
           font-weight: 650;
         }
 
-        .st-arrow {
-          transition: transform 0.2s;
+        .task-card-footer svg {
+          transition: transform .2s;
         }
 
-        .st-card:hover .st-arrow {
+        .task-card:hover .task-card-footer svg {
           transform: translateX(4px);
         }
 
-        .st-empty {
-          border: 1px dashed #303746;
-          border-radius: 15px;
+        .tasks-empty {
+          background: #fff;
+          border: 1px dashed #dce1eb;
+          border-radius: 14px;
           padding: 55px 20px;
           text-align: center;
-          background: #11151c;
         }
 
-        .st-empty-icon {
+        .tasks-empty-icon {
           width: 56px;
           height: 56px;
+          margin: 0 auto 15px;
           display: flex;
           align-items: center;
           justify-content: center;
-          margin: 0 auto 15px;
+          background: #f0f2ff;
           border-radius: 15px;
-          background: #1c2330;
-          color: #818cf8;
+          color: #6675dc;
         }
 
-        .st-empty h3 {
-          margin: 0 0 8px;
+        .tasks-empty h3 {
           font-size: 16px;
+          margin: 0 0 8px;
+          color: #344054;
         }
 
-        .st-empty p {
-          margin: 0;
-          color: #7e899b;
+        .tasks-empty p {
           font-size: 13px;
+          color: #8b95a5;
+          margin: 0;
         }
 
-        .st-error {
-          border: 1px solid rgba(248,113,113,0.25);
-          background: rgba(248,113,113,0.06);
-          border-radius: 12px;
-          padding: 15px;
-          color: #fca5a5;
+        .tasks-error {
+          padding: 14px;
+          background: #fff1f1;
+          border: 1px solid #ffdada;
+          border-radius: 10px;
+          color: #c24141;
+          font-size: 13px;
           display: flex;
           justify-content: space-between;
           align-items: center;
           gap: 12px;
           margin-bottom: 20px;
-          font-size: 13px;
         }
 
-        .st-error button {
-          border: 1px solid #573333;
-          border-radius: 8px;
-          background: transparent;
-          color: #fca5a5;
-          padding: 8px 12px;
+        .tasks-error button {
+          background: #fff;
+          border: 1px solid #f2caca;
+          border-radius: 7px;
+          padding: 7px 11px;
+          color: #b33c3c;
           cursor: pointer;
         }
 
-        .st-loading {
+        .tasks-loading {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 16px;
         }
 
-        .st-skeleton {
+        .tasks-skeleton {
           height: 230px;
-          border-radius: 15px;
           background: linear-gradient(
-            100deg,
-            #12161e 20%,
-            #1b212b 40%,
-            #12161e 60%
+            90deg,
+            #fff 25%,
+            #f0f2f7 50%,
+            #fff 75%
           );
           background-size: 200% 100%;
-          animation: st-shimmer 1.5s infinite;
-          border: 1px solid #222834;
+          border: 1px solid #e8ebf2;
+          border-radius: 14px;
+          animation: tasks-shimmer 1.4s infinite;
         }
 
-        @keyframes st-shimmer {
-          to {
-            background-position: -200% 0;
-          }
+        @keyframes tasks-shimmer {
+          to { background-position: -200% 0; }
         }
 
-        .st-result-count {
-          color: #748094;
+        .tasks-result-count {
           font-size: 12px;
-          margin-bottom: 16px;
+          color: #8b95a5;
+          margin-bottom: 13px;
         }
 
         @media (max-width: 900px) {
-          .st-stats {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+          .tasks-stats {
+            grid-template-columns: repeat(2, 1fr);
           }
 
-          .st-grid {
+          .tasks-grid {
             grid-template-columns: 1fr;
           }
         }
 
         @media (max-width: 600px) {
-          .student-tasks {
-            padding: 18px 14px;
+          .tasks-page {
+            padding: 17px 13px;
           }
 
-          .st-header {
-            margin-bottom: 22px;
-          }
-
-          .st-heading h1 {
+          .tasks-header h1 {
             font-size: 24px;
           }
 
-          .st-heading p {
+          .tasks-header p {
             font-size: 12px;
+            line-height: 1.6;
           }
 
-          .st-refresh {
+          .tasks-refresh {
             width: 42px;
-            justify-content: center;
             padding: 0;
+            justify-content: center;
             font-size: 0;
           }
 
-          .st-stats {
+          .tasks-stats {
             gap: 10px;
-            margin-bottom: 20px;
           }
 
-          .st-stat {
+          .tasks-stat {
             padding: 14px;
-            min-height: 100px;
           }
 
-          .st-stat-value {
+          .tasks-stat-value {
             font-size: 23px;
           }
 
-          .st-stat-label {
-            font-size: 11px;
-          }
-
-          .st-progress-card {
+          .tasks-completion {
             padding: 16px;
-            margin-bottom: 22px;
           }
 
-          .st-toolbar {
+          .tasks-toolbar {
             align-items: stretch;
           }
 
-          .st-search {
+          .tasks-search {
             max-width: none;
             width: 100%;
           }
 
-          .st-sort {
+          .tasks-sort {
             width: 100%;
             justify-content: space-between;
           }
 
-          .st-filters {
-            margin-bottom: 18px;
+          .tasks-card {
+            padding: 15px;
           }
 
-          .st-card {
-            padding: 16px;
-          }
-
-          .st-card-content h3 {
-            font-size: 15px;
-          }
-
-          .st-description {
-            font-size: 12px;
-          }
-
-          .st-loading {
+          .tasks-loading {
             grid-template-columns: 1fr;
           }
         }
       `}</style>
 
-      <div className="st-container">
+      <div className="tasks-container">
 
-        <header className="st-header">
-          <div className="st-heading">
+        <header className="tasks-header">
+          <div>
             <h1>My Tasks</h1>
-            <p>
-              Track your assignments, deadlines and submissions.
-            </p>
+            <p>Manage assignments, track progress and submit your work.</p>
           </div>
 
           <button
-            className="st-refresh"
-            onClick={refreshTasks}
+            className="tasks-refresh"
+            onClick={refresh}
             disabled={refreshing}
           >
-            <RefreshCw
-              size={16}
-              className={refreshing ? "st-spin" : ""}
-            />
+            <RefreshCw size={16} />
             Refresh
           </button>
         </header>
 
-        <section className="st-stats">
+        <section className="tasks-stats">
 
-          <div className="st-stat">
-            <div className="st-stat-top">
-              <span className="st-stat-label">Total Tasks</span>
-              <div
-                className="st-stat-icon"
-                style={{
-                  background: "rgba(129,140,248,0.12)",
-                  color: "#818cf8"
-                }}
-              >
+          <div className="tasks-stat">
+            <div className="tasks-stat-top">
+              <span className="tasks-stat-label">Total Tasks</span>
+              <div className="tasks-stat-icon" style={{ background: "#eef0ff", color: "#6675dc" }}>
                 <ClipboardList size={17} />
               </div>
             </div>
-
-            <div className="st-stat-value">{stats.total}</div>
-            <div className="st-stat-sub">Assigned to you</div>
+            <div className="tasks-stat-value">{stats.total}</div>
+            <div className="tasks-stat-sub">Assigned to you</div>
           </div>
 
-          <div className="st-stat">
-            <div className="st-stat-top">
-              <span className="st-stat-label">Pending</span>
-              <div
-                className="st-stat-icon"
-                style={{
-                  background: "rgba(245,158,11,0.12)",
-                  color: "#f59e0b"
-                }}
-              >
+          <div className="tasks-stat">
+            <div className="tasks-stat-top">
+              <span className="tasks-stat-label">Pending</span>
+              <div className="tasks-stat-icon" style={{ background: "#fff6e8", color: "#d99024" }}>
                 <Clock size={17} />
               </div>
             </div>
-
-            <div className="st-stat-value">{stats.pending}</div>
-            <div className="st-stat-sub">Awaiting submission</div>
+            <div className="tasks-stat-value">{stats.pending}</div>
+            <div className="tasks-stat-sub">To be completed</div>
           </div>
 
-          <div className="st-stat">
-            <div className="st-stat-top">
-              <span className="st-stat-label">Submitted</span>
-              <div
-                className="st-stat-icon"
-                style={{
-                  background: "rgba(56,189,248,0.12)",
-                  color: "#38bdf8"
-                }}
-              >
-                <FileText size={17} />
+          <div className="tasks-stat">
+            <div className="tasks-stat-top">
+              <span className="tasks-stat-label">Submitted</span>
+              <div className="tasks-stat-icon" style={{ background: "#eaf7ff", color: "#1591cf" }}>
+                <ClipboardList size={17} />
               </div>
             </div>
-
-            <div className="st-stat-value">{stats.submitted}</div>
-            <div className="st-stat-sub">Awaiting evaluation</div>
+            <div className="tasks-stat-value">{stats.submitted}</div>
+            <div className="tasks-stat-sub">Awaiting evaluation</div>
           </div>
 
-          <div className="st-stat">
-            <div className="st-stat-top">
-              <span className="st-stat-label">Completed</span>
-              <div
-                className="st-stat-icon"
-                style={{
-                  background: "rgba(52,211,153,0.12)",
-                  color: "#34d399"
-                }}
-              >
+          <div className="tasks-stat">
+            <div className="tasks-stat-top">
+              <span className="tasks-stat-label">Completed</span>
+              <div className="tasks-stat-icon" style={{ background: "#eaf8ef", color: "#219653" }}>
                 <CheckCircle2 size={17} />
               </div>
             </div>
-
-            <div className="st-stat-value">{stats.completed}</div>
-            <div className="st-stat-sub">Evaluated tasks</div>
+            <div className="tasks-stat-value">{stats.completed}</div>
+            <div className="tasks-stat-sub">Successfully completed</div>
           </div>
 
         </section>
 
-        <section className="st-progress-card">
-          <div className="st-progress-top">
-            <span className="st-progress-title">
-              Overall Completion
-            </span>
-
-            <span className="st-progress-value">
-              {completionPercentage}%
-            </span>
+        <section className="tasks-completion">
+          <div className="tasks-completion-head">
+            <span>Task Completion</span>
+            <span>{completion}%</span>
           </div>
 
-          <div className="st-progress-track">
+          <div className="tasks-completion-track">
             <div
-              className="st-progress-fill"
-              style={{ width: `${completionPercentage}%` }}
+              className="tasks-completion-fill"
+              style={{ width: `${completion}%` }}
             />
           </div>
         </section>
 
         {error && (
-          <div className="st-error">
+          <div className="tasks-error">
             <span>{error}</span>
-            <button onClick={loadTasks}>Retry</button>
+            <button onClick={() => loadTasks()}>Retry</button>
           </div>
         )}
 
-        <section className="st-toolbar">
-          <div className="st-search">
-            <Search size={16} className="st-search-icon" />
+        <div className="tasks-toolbar">
+          <div className="tasks-search">
+            <Search size={16} className="tasks-search-icon" />
 
             <input
-              type="text"
-              placeholder="Search tasks or subjects..."
+              placeholder="Search tasks..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
 
             {search && (
-              <button
-                className="st-search-clear"
-                onClick={() => setSearch("")}
-              >
+              <button className="tasks-clear" onClick={() => setSearch("")}>
                 <X size={15} />
               </button>
             )}
           </div>
 
-          <div className="st-sort">
+          <div className="tasks-sort">
             <Filter size={15} />
-
-            <span>Sort:</span>
-
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-            >
+            <span>Sort by</span>
+            <select value={sort} onChange={e => setSort(e.target.value)}>
               <option value="deadline">Deadline</option>
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
             </select>
           </div>
-        </section>
+        </div>
 
-        <section className="st-filters">
-          {filters.map((item) => (
+        <div className="tasks-filters">
+          {filters.map(item => (
             <button
-              key={item.id}
-              className={`st-filter ${
-                filter === item.id ? "active" : ""
-              }`}
-              onClick={() => setFilter(item.id)}
+              key={item.key}
+              className={`tasks-filter ${filter === item.key ? "active" : ""}`}
+              onClick={() => setFilter(item.key)}
             >
               {item.label}
-
-              <span className="st-filter-count">
-                {item.count}
-              </span>
+              <span className="tasks-filter-count">{item.count}</span>
             </button>
           ))}
-        </section>
+        </div>
 
         {loading ? (
-          <div className="st-loading">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div className="st-skeleton" key={index} />
+          <div className="tasks-loading">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="tasks-skeleton" />
             ))}
           </div>
-        ) : filteredTasks.length > 0 ? (
+        ) : filtered.length ? (
           <>
-            <div className="st-result-count">
-              Showing {filteredTasks.length} of {tasks.length} tasks
+            <div className="tasks-result-count">
+              Showing {filtered.length} of {tasks.length} tasks
             </div>
 
-            <div className="st-grid">
-              {filteredTasks.map((task, index) => (
+            <div className="tasks-grid">
+              {filtered.map((task, index) => (
                 <TaskCard
-                  key={getId(task) || index}
+                  key={taskId(task) || index}
                   task={task}
                   onClick={() => openTask(task)}
                 />
@@ -1274,25 +1104,24 @@ export default function Tasks() {
             </div>
           </>
         ) : (
-          <div className="st-empty">
-            <div className="st-empty-icon">
+          <div className="tasks-empty">
+            <div className="tasks-empty-icon">
               <ListTodo size={25} />
             </div>
 
             <h3>
               {search || filter !== "all"
-                ? "No tasks found"
-                : "No tasks assigned yet"}
+                ? "No matching tasks"
+                : "No tasks assigned"}
             </h3>
 
             <p>
               {search || filter !== "all"
-                ? "Try changing your search or filters."
-                : "Your assignments will appear here when they are assigned."}
+                ? "Try changing the search or filter."
+                : "Tasks assigned to you will appear here."}
             </p>
           </div>
         )}
-
       </div>
     </div>
   );
