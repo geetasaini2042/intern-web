@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -55,6 +54,11 @@ const pageTitles = {
   "/dash/settings": "Settings"
 };
 
+const getToken = () =>
+  localStorage.getItem("intern_token") ||
+  localStorage.getItem("access_token") ||
+  "";
+
 const getStoredUser = () => {
   try {
     const value = localStorage.getItem("intern_user");
@@ -64,38 +68,45 @@ const getStoredUser = () => {
   }
 };
 
-const getUserName = user =>
-  user?.full_name ||
-  user?.name ||
-  user?.student_name ||
-  user?.username ||
-  user?.first_name ||
-  user?.display_name ||
-  "";
-
-const getUserPhoto = user =>
-  user?.profile_photo ||
-  user?.profile_image ||
-  user?.photo_url ||
-  user?.photo ||
-  user?.avatar ||
-  user?.image ||
-  user?.picture ||
-  user?.profile?.photo ||
-  user?.profile?.avatar ||
-  "";
-
-const getInitials = name => {
-  if (!name) return "I";
-
-  return name
+const getUserRole = user =>
+  String(user?.role || user?.designation || "")
     .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map(part => part.charAt(0))
-    .join("")
-    .toUpperCase();
+    .toLowerCase();
+
+const getHomeRoute = () => {
+  const user = getStoredUser();
+  const role = getUserRole(user);
+
+  if (role === "admin" || role === "administrator") {
+    return "/admin";
+  }
+
+  return "/dash";
 };
+
+function RequireAuth() {
+  const location = useLocation();
+
+  if (!getToken()) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location }}
+      />
+    );
+  }
+
+  return <Outlet />;
+}
+
+function GuestOnly() {
+  if (getToken()) {
+    return <Navigate to={getHomeRoute()} replace />;
+  }
+
+  return <Login />;
+}
 
 function DashboardLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -115,6 +126,8 @@ function DashboardLayout() {
 
       setUser(stored);
       setPhotoError(false);
+
+      if (!getToken()) return;
 
       try {
         let response;
@@ -162,11 +175,26 @@ function DashboardLayout() {
   }, []);
 
   const name =
-    getUserName(user) ||
+    user?.full_name ||
+    user?.name ||
+    user?.student_name ||
+    user?.username ||
+    user?.first_name ||
+    user?.display_name ||
     localStorage.getItem("intern_email")?.split("@")[0] ||
     "Intern";
 
-  const photo = getUserPhoto(user);
+  const photo =
+    user?.profile_photo ||
+    user?.profile_image ||
+    user?.photo_url ||
+    user?.photo ||
+    user?.avatar ||
+    user?.image ||
+    user?.picture ||
+    user?.profile?.photo ||
+    user?.profile?.avatar ||
+    "";
 
   const email =
     user?.email ||
@@ -178,6 +206,14 @@ function DashboardLayout() {
     user?.role ||
     user?.designation ||
     "Intern";
+
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(part => part.charAt(0))
+    .join("")
+    .toUpperCase();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -223,7 +259,7 @@ function DashboardLayout() {
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-sm font-bold text-indigo-700">
-                  {getInitials(name)}
+                  {initials || "I"}
                 </div>
               )}
             </div>
@@ -279,195 +315,197 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+
+        {/* Login */}
+        <Route
+          path="/login"
+          element={<GuestOnly />}
+        />
+
+        {/* Protected Routes */}
+        <Route element={<RequireAuth />}>
+
+          {/* Admin */}
+          <Route
+            path="/admin"
+            element={<AdminPanel />}
+          >
+            <Route
+              index
+              element={<AdminDashboard />}
+            />
+
+            <Route
+              path="dashboard"
+              element={<AdminDashboard />}
+            />
+
+            <Route
+              path="students"
+              element={<Students />}
+            />
+
+            <Route
+              path="students/:studentId"
+              element={<StudentDetails />}
+            />
+
+            <Route
+              path="programs"
+              element={<Programs />}
+            />
+
+            <Route
+              path="batches"
+              element={<Batches />}
+            />
+
+            <Route
+              path="tasks"
+              element={<TasksAdmin />}
+            />
+
+            <Route
+              path="learn"
+              element={<LearnAdmin />}
+            />
+
+            <Route
+              path="projects"
+              element={<ProjectsAdmin />}
+            />
+
+            <Route
+              path="approvals"
+              element={<Approvals />}
+            />
+
+            <Route
+              path="attendance"
+              element={<AttendanceAdmin />}
+            />
+
+            <Route
+              path="logbook"
+              element={<LogbookAdmin />}
+            />
+
+            <Route
+              path="certificates"
+              element={<CertificatesAdmin />}
+            />
+
+            <Route
+              path="announcements"
+              element={<AnnouncementsAdmin />}
+            />
+
+            <Route
+              path="settings"
+              element={<AdminSettings />}
+            />
+
+            <Route
+              path="*"
+              element={<Navigate to="/admin" replace />}
+            />
+          </Route>
+
+          {/* Student Dashboard */}
+          <Route
+            path="/dash"
+            element={<DashboardLayout />}
+          >
+            <Route
+              index
+              element={<Dash />}
+            />
+
+            <Route
+              path="attendance"
+              element={<Attendance />}
+            />
+
+            <Route
+              path="tasks"
+              element={<Tasks />}
+            />
+
+            <Route
+              path="logbook"
+              element={<Logbook />}
+            />
+
+            <Route
+              path="learn"
+              element={<Learn />}
+            />
+
+            <Route
+              path="skills"
+              element={<Skills />}
+            />
+
+            <Route
+              path="projects"
+              element={<Projects />}
+            />
+
+            <Route
+              path="submission"
+              element={<PlaceholderPage />}
+            />
+
+            <Route
+              path="announcements"
+              element={<PlaceholderPage />}
+            />
+
+            <Route
+              path="certificates"
+              element={<Certificates />}
+            />
+
+            <Route
+              path="profile"
+              element={<Profile />}
+            />
+
+            <Route
+              path="settings"
+              element={<PlaceholderPage />}
+            />
+
+            <Route
+              path="*"
+              element={<Navigate to="/dash" replace />}
+            />
+          </Route>
+
+        </Route>
+
         {/* Root */}
         <Route
           path="/"
-          element={<Navigate to="/login" replace />}
+          element={
+            <Navigate
+              to={getToken() ? getHomeRoute() : "/login"}
+              replace
+            />
+          }
         />
-
-        {/* Authentication */}
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        {/* Admin Panel */}
-        <Route
-          path="/admin"
-          element={<AdminPanel />}
-        >
-          {/* Admin Dashboard */}
-          <Route
-            index
-            element={<AdminDashboard />}
-          />
-
-          <Route
-            path="dashboard"
-            element={<AdminDashboard />}
-          />
-
-          {/* Students */}
-          <Route
-            path="students"
-            element={<Students />}
-          />
-
-          <Route
-            path="students/:studentId"
-            element={<StudentDetails />}
-          />
-
-          {/* Programs */}
-          <Route
-            path="programs"
-            element={<Programs />}
-          />
-
-          {/* Batches */}
-          <Route
-            path="batches"
-            element={<Batches />}
-          />
-
-          {/* Task Management */}
-          <Route
-            path="tasks"
-            element={<TasksAdmin />}
-          />
-
-          {/* Learn Programs */}
-          <Route
-            path="learn"
-            element={<LearnAdmin />}
-          />
-
-          {/* Projects */}
-          <Route
-            path="projects"
-            element={<ProjectsAdmin />}
-          />
-
-          {/* Approvals */}
-          <Route
-            path="approvals"
-            element={<Approvals />}
-          />
-
-          {/* Attendance */}
-          <Route
-            path="attendance"
-            element={<AttendanceAdmin />}
-          />
-
-          {/* Logbook */}
-          <Route
-            path="logbook"
-            element={<LogbookAdmin />}
-          />
-
-          {/* Certificates */}
-          <Route
-            path="certificates"
-            element={<CertificatesAdmin />}
-          />
-
-          {/* Announcements */}
-          <Route
-            path="announcements"
-            element={<AnnouncementsAdmin />}
-          />
-
-          {/* Settings */}
-          <Route
-            path="settings"
-            element={<AdminSettings />}
-          />
-
-          {/* Unknown admin route */}
-          <Route
-            path="*"
-            element={<Navigate to="/admin" replace />}
-          />
-        </Route>
-
-        {/* Student Dashboard */}
-        <Route
-          path="/dash"
-          element={<DashboardLayout />}
-        >
-          <Route
-            index
-            element={<Dash />}
-          />
-
-          <Route
-            path="attendance"
-            element={<Attendance />}
-          />
-
-          <Route
-            path="tasks"
-            element={<Tasks />}
-          />
-
-          <Route
-            path="logbook"
-            element={<Logbook />}
-          />
-
-          <Route
-            path="learn"
-            element={<Learn />}
-          />
-
-          <Route
-            path="skills"
-            element={<Skills />}
-          />
-
-          <Route
-            path="projects"
-            element={<Projects />}
-          />
-
-          <Route
-            path="submission"
-            element={<PlaceholderPage />}
-          />
-
-          <Route
-            path="announcements"
-            element={<PlaceholderPage />}
-          />
-
-          <Route
-            path="certificates"
-            element={<Certificates />}
-          />
-
-          <Route
-            path="profile"
-            element={<Profile />}
-          />
-
-          <Route
-            path="settings"
-            element={<PlaceholderPage />}
-          />
-
-          {/* Unknown student route */}
-          <Route
-            path="*"
-            element={<Navigate to="/dash" replace />}
-          />
-        </Route>
 
         {/* Global fallback */}
         <Route
           path="*"
-          element={<Navigate to="/login" replace />}
+          element={
+            <Navigate
+              to={getToken() ? getHomeRoute() : "/login"}
+              replace
+            />
+          }
         />
+
       </Routes>
     </BrowserRouter>
   );
