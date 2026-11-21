@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { apiGet, apiPost, apiPut, apiDelete } from "../../lib/api";
+import {
+  apiGet,
+  apiPut,
+  apiPost
+} from "../../lib/api";
+
 import {
   ArrowLeft,
   UserRound,
@@ -688,6 +693,732 @@ function Overview({ student, sectionData }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+function AttendanceSection({ data }) {
+  const rows = getArray(data, ["attendance", "records", "items", "history"]);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <MetricCard
+          label="Present Days"
+          value={data?.present_days ?? data?.present ?? 0}
+          icon={CheckCircle2}
+          color="bg-emerald-50 text-emerald-600"
+        />
+
+        <MetricCard
+          label="Absent Days"
+          value={data?.absent_days ?? data?.absent ?? 0}
+          icon={XCircle}
+          color="bg-red-50 text-red-600"
+        />
+
+        <MetricCard
+          label="Total Hours"
+          value={data?.total_hours ?? data?.hours ?? 0}
+          icon={Clock}
+          color="bg-blue-50 text-blue-600"
+        />
+      </div>
+
+      <DataTable
+        rows={rows}
+        emptyTitle="No attendance records"
+        emptyDescription="Attendance records will appear here."
+        columns={[
+          {
+            label: "Date",
+            render: (row) => formatDate(row.date || row.check_in_date)
+          },
+          {
+            label: "Check In",
+            render: (row) => row.check_in || row.check_in_time || "—"
+          },
+          {
+            label: "Check Out",
+            render: (row) => row.check_out || row.check_out_time || "—"
+          },
+          {
+            label: "Hours",
+            render: (row) => row.hours ?? row.duration ?? "—"
+          },
+          {
+            label: "Status",
+            render: (row) => <Status value={row.status} />
+          }
+        ]}
+      />
+    </div>
+  );
+}
+
+function TasksSection({ data }) {
+  const rows = getArray(data, ["tasks", "items", "assignments"]);
+
+  return (
+    <DataTable
+      rows={rows}
+      emptyTitle="No assigned tasks"
+      emptyDescription="Tasks assigned to this student will appear here."
+      columns={[
+        {
+          label: "Task",
+          render: (row) => (
+            <div>
+              <p className="font-semibold text-slate-800">
+                {row.title || row.task_name || "Untitled Task"}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {row.description || ""}
+              </p>
+            </div>
+          )
+        },
+        {
+          label: "Deadline",
+          render: (row) => formatDate(row.deadline || row.due_date)
+        },
+        {
+          label: "Submitted",
+          render: (row) => formatDate(row.submitted_at)
+        },
+        {
+          label: "Status",
+          render: (row) => <Status value={row.status} />
+        }
+      ]}
+    />
+  );
+}
+
+function LearnSection({ data }) {
+  const rows = getArray(data, ["learn", "programs", "courses", "items"]);
+
+  return (
+    <DataTable
+      rows={rows}
+      emptyTitle="No learning programs assigned"
+      emptyDescription="Assigned Learn programs and progress will appear here."
+      columns={[
+        {
+          label: "Program",
+          render: (row) => (
+            <div>
+              <p className="font-semibold text-slate-800">
+                {row.title || row.program_name || row.name || "Learning Program"}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {row.modules_count ?? row.total_modules ?? "—"} modules
+              </p>
+            </div>
+          )
+        },
+        {
+          label: "Progress",
+          render: (row) => {
+            const progress =
+              row.progress ??
+              row.completion_percentage ??
+              row.completed_percentage ??
+              0;
+
+            return (
+              <div className="min-w-[120px]">
+                <div className="mb-1 flex justify-between text-xs">
+                  <span>{progress}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-violet-500"
+                    style={{ width: `${Math.min(100, progress)}%` }}
+                  />
+                </div>
+              </div>
+            );
+          }
+        },
+        {
+          label: "Completed",
+          render: (row) =>
+            `${row.completed_lessons ?? row.completed ?? 0} / ${row.total_lessons ?? row.total ?? 0}`
+        },
+        {
+          label: "Status",
+          render: (row) => <Status value={row.status} />
+        }
+      ]}
+    />
+  );
+}
+
+function ProjectsSection({ data }) {
+  const rows = getArray(data, ["projects", "items", "assignments"]);
+
+  return (
+    <DataTable
+      rows={rows}
+      emptyTitle="No projects assigned"
+      emptyDescription="Projects assigned to this student will appear here."
+      columns={[
+        {
+          label: "Project",
+          render: (row) => (
+            <div>
+              <p className="font-semibold text-slate-800">
+                {row.title || row.project_name || "Untitled Project"}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {row.technology || row.tech_stack || ""}
+              </p>
+            </div>
+          )
+        },
+        {
+          label: "Deadline",
+          render: (row) => formatDate(row.deadline || row.due_date)
+        },
+        {
+          label: "Submitted",
+          render: (row) => formatDate(row.submitted_at)
+        },
+        {
+          label: "Status",
+          render: (row) => <Status value={row.status} />
+        }
+      ]}
+    />
+  );
+}
+
+function LogbookSection({ data }) {
+  const rows = getArray(data, ["logbook", "entries", "items"]);
+
+  return (
+    <DataTable
+      rows={rows}
+      emptyTitle="No logbook entries"
+      emptyDescription="Student's submitted daily logbook entries will appear here."
+      columns={[
+        {
+          label: "Date",
+          render: (row) => formatDate(row.date)
+        },
+        {
+          label: "Activity",
+          render: (row) => (
+            <div>
+              <p className="font-semibold text-slate-800">
+                {row.title || row.activity || "Daily Activity"}
+              </p>
+              <p className="mt-1 max-w-xs truncate text-xs text-slate-400">
+                {row.description || row.work_done || ""}
+              </p>
+            </div>
+          )
+        },
+        {
+          label: "Hours",
+          render: (row) => row.hours ?? row.duration ?? "—"
+        },
+        {
+          label: "Status",
+          render: (row) => <Status value={row.status} />
+        }
+      ]}
+    />
+  );
+}
+
+function CertificatesSection({ data }) {
+  const rows = getArray(data, ["certificates", "items"]);
+
+  return (
+    <DataTable
+      rows={rows}
+      emptyTitle="No certificates"
+      emptyDescription="Certificates issued to this student will appear here."
+      columns={[
+        {
+          label: "Certificate",
+          render: (row) => (
+            <div>
+              <p className="font-semibold text-slate-800">
+                {row.certificate_name || row.program_name || row.title || "Internship Certificate"}
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                {row.certificate_number || row.certificate_id || ""}
+              </p>
+            </div>
+          )
+        },
+        {
+          label: "Issued",
+          render: (row) => formatDate(row.issued_at || row.issue_date)
+        },
+        {
+          label: "Status",
+          render: (row) => <Status value={row.status || "issued"} />
+        },
+        {
+          label: "Action",
+          render: (row) =>
+            row.download_url ? (
+              <a
+                href={row.download_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600"
+              >
+                <Download size={14} />
+                Download
+              </a>
+            ) : (
+              "—"
+            )
+        }
+      ]}
+    />
+  );
+}
+
+export default function StudentDetails() {
+  const { studentId } = useParams();
+  const navigate = useNavigate();
+
+  const [student, setStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
+  const [activeTab, setActiveTab] = useState("overview");
+  const [sectionData, setSectionData] = useState({});
+  const [sectionLoading, setSectionLoading] = useState(false);
+  const [sectionError, setSectionError] = useState("");
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const [toast, setToast] = useState("");
+
+  const loadStudent = async () => {
+    setLoading(true);
+    setLoadError("");
+
+    try {
+      const response = await apiGet(`/admin/students/${studentId}`);
+      const result = getObject(response);
+
+      setStudent(normalizeStudent(result));
+    } catch (error) {
+      console.error("Student details load failed:", error);
+      setLoadError(error.message || "Unable to load student details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStudent();
+  }, [studentId]);
+
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => setToast(""), 3500);
+  };
+
+  const loadSection = async (tab) => {
+    if (tab === "overview") return;
+    if (sectionData[tab]) return;
+
+    setSectionLoading(true);
+    setSectionError("");
+
+    const endpoints = {
+      attendance: `/admin/students/${studentId}/attendance`,
+      tasks: `/admin/students/${studentId}/tasks`,
+      learn: `/admin/students/${studentId}/learn`,
+      projects: `/admin/students/${studentId}/projects`,
+      logbook: `/admin/students/${studentId}/logbook`,
+      certificates: `/admin/students/${studentId}/certificates`
+    };
+
+    try {
+      const response = await apiGet(endpoints[tab]);
+
+      setSectionData((prev) => ({
+        ...prev,
+        [tab]: response?.data || response
+      }));
+    } catch (error) {
+      console.error(`${tab} loading failed:`, error);
+      setSectionError(error.message || `Unable to load ${tab}.`);
+    } finally {
+      setSectionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSection(activeTab);
+  }, [activeTab, studentId]);
+
+  const handleEditSave = async (form) => {
+    setEditSaving(true);
+
+    try {
+      await apiPut(`/admin/students/${studentId}`, form);
+      setEditOpen(false);
+      await loadStudent();
+      showToast("Student profile updated.");
+    } catch (error) {
+      console.error("Student update failed:", error);
+      throw error;
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handlePasswordReset = async (password) => {
+    setPasswordSaving(true);
+
+    try {
+      await apiPost(`/admin/students/${studentId}/reset-password`, {
+        new_password: password
+      });
+
+      setPasswordOpen(false);
+      showToast("Student password reset successfully.");
+    } catch (error) {
+      console.error("Password reset failed:", error);
+      throw error;
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    await loadStudent();
+
+    setSectionData((prev) => ({
+      ...prev,
+      [activeTab]: undefined
+    }));
+
+    if (activeTab !== "overview") {
+      await loadSection(activeTab);
+    }
+  };
+
+  const quickActions = [
+    {
+      label: "Assign Task",
+      icon: ClipboardList,
+      route: "/admin/tasks"
+    },
+    {
+      label: "Assign Project",
+      icon: FolderKanban,
+      route: "/admin/projects"
+    },
+    {
+      label: "Assign Learn",
+      icon: BookOpen,
+      route: "/admin/learn"
+    }
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
+        <Loader2 size={28} className="animate-spin text-blue-600" />
+        <p className="text-sm text-slate-500">Loading student profile...</p>
+      </div>
+    );
+  }
+
+  if (loadError || !student) {
+    return (
+      <div className="rounded-2xl border border-red-100 bg-white p-8 text-center">
+        <AlertCircle className="mx-auto text-red-500" size={30} />
+
+        <h2 className="mt-3 font-semibold text-slate-900">
+          Unable to load student
+        </h2>
+
+        <p className="mt-2 text-sm text-slate-500">
+          {loadError || "Student record not found."}
+        </p>
+
+        <div className="mt-5 flex justify-center gap-2">
+          <button
+            onClick={() => navigate("/admin/students")}
+            className="rounded-xl border px-4 py-2 text-sm font-medium"
+          >
+            Back to Students
+          </button>
+
+          <button
+            onClick={loadStudent}
+            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed right-4 top-20 z-[120] flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl">
+          <CheckCircle2 size={17} className="text-emerald-400" />
+          {toast}
+        </div>
+      )}
+
+      {/* Back */}
+      <button
+        onClick={() => navigate("/admin/students")}
+        className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900"
+      >
+        <ArrowLeft size={17} />
+        Back to Students
+      </button>
+
+      {/* Profile header */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="h-24 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 sm:h-32" />
+
+        <div className="px-4 pb-5 sm:px-6">
+          <div className="-mt-10 flex flex-col gap-4 sm:-mt-12 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-end gap-3 sm:gap-4">
+              <div className="rounded-2xl border-4 border-white shadow-sm">
+                <Avatar student={student} size="lg" />
+              </div>
+
+              <div className="min-w-0 pb-1">
+                <h1 className="text-lg font-bold text-slate-900 sm:text-2xl">
+                  {student.full_name}
+                </h1>
+
+                <p className="mt-1 truncate text-xs text-slate-500 sm:text-sm">
+                  {student.email}
+                </p>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Status value={student.status} />
+
+                  {student.enrollment_id && (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                      {student.enrollment_id}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 sm:pb-1">
+              <button
+                onClick={() => setPasswordOpen(true)}
+                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                <KeyRound size={15} />
+                Reset Password
+              </button>
+
+              <button
+                onClick={() => setEditOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2.5 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                <Edit size={15} />
+                Edit Profile
+              </button>
+            </div>
+          </div>
+
+          {/* Quick info */}
+          <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2 xl:grid-cols-4">
+            <InfoItem
+              icon={Phone}
+              label="Phone"
+              value={student.phone}
+            />
+
+            <InfoItem
+              icon={GraduationCap}
+              label="Program"
+              value={student.internship_program}
+            />
+
+            <InfoItem
+              icon={Layers}
+              label="Batch"
+              value={student.batch}
+            />
+
+            <InfoItem
+              icon={Building2}
+              label="College"
+              value={student.college}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Quick assignment actions */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        {quickActions.map((action) => {
+          const Icon = action.icon;
+
+          return (
+            <button
+              key={action.label}
+              onClick={() =>
+                navigate(`${action.route}?studentId=${studentId}`)
+              }
+              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-200 hover:bg-blue-50/40"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-blue-50 p-2.5 text-blue-600">
+                  <Icon size={18} />
+                </div>
+
+                <span className="text-sm font-semibold text-slate-700">
+                  {action.label}
+                </span>
+              </div>
+
+              <ChevronRight size={17} className="text-slate-400" />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tabs */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-200">
+          <div className="flex gap-1 overflow-x-auto px-2 pt-2">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-xs font-semibold transition sm:px-4 ${
+                    active
+                      ? "border-blue-600 text-blue-600"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Icon size={15} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-slate-900">
+              {TABS.find((tab) => tab.id === activeTab)?.label}
+            </h2>
+
+            <button
+              onClick={handleRefresh}
+              className="rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
+              title="Refresh"
+            >
+              <RefreshCw size={15} />
+            </button>
+          </div>
+
+          {sectionLoading ? (
+            <div className="flex min-h-[240px] flex-col items-center justify-center gap-3">
+              <Loader2 size={25} className="animate-spin text-blue-600" />
+              <p className="text-xs text-slate-500">Loading data...</p>
+            </div>
+          ) : sectionError ? (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
+                <AlertCircle size={17} />
+                Unable to load data
+              </div>
+
+              <p className="mt-1 text-xs text-red-600">{sectionError}</p>
+
+              <button
+                onClick={() => {
+                  setSectionData((prev) => ({
+                    ...prev,
+                    [activeTab]: undefined
+                  }));
+                  loadSection(activeTab);
+                }}
+                className="mt-3 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              {activeTab === "overview" && (
+                <Overview
+                  student={student}
+                  sectionData={sectionData}
+                />
+              )}
+
+              {activeTab === "attendance" && (
+                <AttendanceSection data={sectionData.attendance || {}} />
+              )}
+
+              {activeTab === "tasks" && (
+                <TasksSection data={sectionData.tasks || []} />
+              )}
+
+              {activeTab === "learn" && (
+                <LearnSection data={sectionData.learn || []} />
+              )}
+
+              {activeTab === "projects" && (
+                <ProjectsSection data={sectionData.projects || []} />
+              )}
+
+              {activeTab === "logbook" && (
+                <LogbookSection data={sectionData.logbook || []} />
+              )}
+
+              {activeTab === "certificates" && (
+                <CertificatesSection data={sectionData.certificates || []} />
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Modals */}
+      <EditStudentModal
+        student={editOpen ? student : null}
+        onClose={() => setEditOpen(false)}
+        onSave={handleEditSave}
+        saving={editSaving}
+      />
+
+      <PasswordModal
+        student={passwordOpen ? student : null}
+        onClose={() => setPasswordOpen(false)}
+        onSave={handlePasswordReset}
+        saving={passwordSaving}
+      />
     </div>
   );
 }
