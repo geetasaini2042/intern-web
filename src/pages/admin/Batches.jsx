@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { apiGet, apiPost, apiPut, apiDelete } from "../lib/api";
+import { apiGet, apiPost, apiPut, apiDelete } from "../../lib/api";
 
 const EMPTY_FORM = {
   name: "",

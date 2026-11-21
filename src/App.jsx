@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import {
   BrowserRouter,
@@ -21,6 +22,21 @@ import Tasks from "./Tasks";
 import Logbook from "./Logbook";
 import Projects from "./Projects";
 import Certificates from "./Certificates";
+
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import Students from "./pages/admin/Students";
+import StudentDetails from "./pages/admin/StudentDetails";
+import Programs from "./pages/admin/Programs";
+import Batches from "./pages/admin/Batches";
+import TasksAdmin from "./pages/admin/TasksAdmin";
+import LearnAdmin from "./pages/admin/LearnAdmin";
+import ProjectsAdmin from "./pages/admin/ProjectsAdmin";
+import Approvals from "./pages/admin/Approvals";
+import AttendanceAdmin from "./pages/admin/AttendanceAdmin";
+import LogbookAdmin from "./pages/admin/LogbookAdmin";
+import CertificatesAdmin from "./pages/admin/CertificatesAdmin";
+import AnnouncementsAdmin from "./pages/admin/AnnouncementsAdmin";
+import AdminSettings from "./pages/admin/AdminSettings";
 
 import { apiGet } from "./lib/api";
 
@@ -129,7 +145,9 @@ function DashboardLayout() {
           "intern_user",
           JSON.stringify(merged)
         );
-      } catch {
+      } catch (err) {
+        console.error("Profile load error:", err);
+
         if (active) {
           setUser(stored);
         }
@@ -261,23 +279,127 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Root */}
         <Route
           path="/"
           element={<Navigate to="/login" replace />}
         />
 
+        {/* Authentication */}
         <Route
           path="/login"
           element={<Login />}
         />
 
+        {/* Admin Panel */}
         <Route
           path="/admin"
           element={<AdminPanel />}
-        />
+        >
+          {/* Admin Dashboard */}
+          <Route
+            index
+            element={<AdminDashboard />}
+          />
 
-        <Route path="/dash" element={<DashboardLayout />}>
-          <Route index element={<Dash />} />
+          <Route
+            path="dashboard"
+            element={<AdminDashboard />}
+          />
+
+          {/* Students */}
+          <Route
+            path="students"
+            element={<Students />}
+          />
+
+          <Route
+            path="students/:studentId"
+            element={<StudentDetails />}
+          />
+
+          {/* Programs */}
+          <Route
+            path="programs"
+            element={<Programs />}
+          />
+
+          {/* Batches */}
+          <Route
+            path="batches"
+            element={<Batches />}
+          />
+
+          {/* Task Management */}
+          <Route
+            path="tasks"
+            element={<TasksAdmin />}
+          />
+
+          {/* Learn Programs */}
+          <Route
+            path="learn"
+            element={<LearnAdmin />}
+          />
+
+          {/* Projects */}
+          <Route
+            path="projects"
+            element={<ProjectsAdmin />}
+          />
+
+          {/* Approvals */}
+          <Route
+            path="approvals"
+            element={<Approvals />}
+          />
+
+          {/* Attendance */}
+          <Route
+            path="attendance"
+            element={<AttendanceAdmin />}
+          />
+
+          {/* Logbook */}
+          <Route
+            path="logbook"
+            element={<LogbookAdmin />}
+          />
+
+          {/* Certificates */}
+          <Route
+            path="certificates"
+            element={<CertificatesAdmin />}
+          />
+
+          {/* Announcements */}
+          <Route
+            path="announcements"
+            element={<AnnouncementsAdmin />}
+          />
+
+          {/* Settings */}
+          <Route
+            path="settings"
+            element={<AdminSettings />}
+          />
+
+          {/* Unknown admin route */}
+          <Route
+            path="*"
+            element={<Navigate to="/admin" replace />}
+          />
+        </Route>
+
+        {/* Student Dashboard */}
+        <Route
+          path="/dash"
+          element={<DashboardLayout />}
+        >
+          <Route
+            index
+            element={<Dash />}
+          />
 
           <Route
             path="attendance"
@@ -334,12 +456,14 @@ export default function App() {
             element={<PlaceholderPage />}
           />
 
+          {/* Unknown student route */}
           <Route
             path="*"
             element={<Navigate to="/dash" replace />}
           />
         </Route>
 
+        {/* Global fallback */}
         <Route
           path="*"
           element={<Navigate to="/login" replace />}

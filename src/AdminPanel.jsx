@@ -28,10 +28,8 @@ import {
   X,
   Search,
   Bell,
-  ChevronRight,
   LogOut,
   ShieldCheck,
-  Building2,
   UserRound
 } from "lucide-react";
 
@@ -50,6 +48,7 @@ import CertificatesAdmin from "./pages/admin/CertificatesAdmin";
 import AnnouncementsAdmin from "./pages/admin/AnnouncementsAdmin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import ImportLegacyStudents from "./pages/admin/ImportLegacyStudents";
+
 const navigation = [
   {
     title: "OVERVIEW",
@@ -154,6 +153,23 @@ const navigation = [
   }
 ];
 
+const pageTitles = {
+  admin: "Dashboard",
+  students: "Students Management",
+  programs: "Internship Programs",
+  batches: "Batch Management",
+  tasks: "Task Management",
+  "import-students": "Import Students",
+  learn: "Learn Programs",
+  projects: "Project Management",
+  approvals: "Submission Approvals",
+  attendance: "Attendance Management",
+  logbook: "Logbook Management",
+  certificates: "Certificates",
+  announcements: "Announcements",
+  settings: "Admin Settings"
+};
+
 function AdminSidebar({ open, setOpen }) {
   const navigate = useNavigate();
 
@@ -163,7 +179,7 @@ function AdminSidebar({ open, setOpen }) {
     localStorage.removeItem("access_token");
     localStorage.removeItem("intern_user");
 
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   return (
@@ -186,7 +202,6 @@ function AdminSidebar({ open, setOpen }) {
           ${open ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* Brand */}
         <div className="flex h-[76px] items-center justify-between border-b border-slate-100 px-5">
           <div className="flex items-center gap-3">
             <img
@@ -199,6 +214,7 @@ function AdminSidebar({ open, setOpen }) {
               <h1 className="text-[14px] font-bold tracking-tight text-slate-900">
                 SINGODIYA
               </h1>
+
               <p className="text-[10px] font-medium tracking-[2px] text-slate-500">
                 TECHNOLOGIES
               </p>
@@ -213,7 +229,6 @@ function AdminSidebar({ open, setOpen }) {
           </button>
         </div>
 
-        {/* Admin badge */}
         <div className="mx-4 mt-4 rounded-xl border border-blue-100 bg-blue-50/70 p-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white">
@@ -224,6 +239,7 @@ function AdminSidebar({ open, setOpen }) {
               <p className="text-xs font-semibold text-slate-800">
                 Administration
               </p>
+
               <p className="text-[11px] text-slate-500">
                 Internship Management
               </p>
@@ -231,7 +247,6 @@ function AdminSidebar({ open, setOpen }) {
           </div>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-5">
           {navigation.map((group) => (
             <div key={group.title} className="mb-6">
@@ -279,7 +294,6 @@ function AdminSidebar({ open, setOpen }) {
           ))}
         </nav>
 
-        {/* Bottom */}
         <div className="border-t border-slate-100 p-3">
           <button
             onClick={handleLogout}
@@ -293,6 +307,7 @@ function AdminSidebar({ open, setOpen }) {
             <p className="text-[10px] text-slate-400">
               Internship Management Portal
             </p>
+
             <p className="text-[10px] font-medium text-slate-500">
               © Singodiya Technologies
             </p>
@@ -306,27 +321,12 @@ function AdminSidebar({ open, setOpen }) {
 function AdminHeader({ setOpen }) {
   const location = useLocation();
 
-  const getTitle = () => {
-    const path = location.pathname.split("/").filter(Boolean).pop();
+  const currentPath = location.pathname
+    .split("/")
+    .filter(Boolean)
+    .pop();
 
-    const titles = {
-      admin: "Dashboard",
-      students: "Students Management",
-      programs: "Internship Programs",
-      batches: "Batch Management",
-      tasks: "Task Management",
-      learn: "Learn Programs",
-      projects: "Project Management",
-      approvals: "Submission Approvals",
-      attendance: "Attendance Management",
-      logbook: "Logbook Management",
-      certificates: "Certificates",
-      announcements: "Announcements",
-      settings: "Admin Settings"
-    };
-
-    return titles[path] || "Administration";
-  };
+  const title = pageTitles[currentPath] || "Administration";
 
   return (
     <header className="sticky top-0 z-30 flex h-[70px] items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur-md sm:px-6 lg:px-8">
@@ -340,8 +340,9 @@ function AdminHeader({ setOpen }) {
 
         <div>
           <h2 className="text-lg font-semibold text-slate-900">
-            {getTitle()}
+            {title}
           </h2>
+
           <p className="hidden text-xs text-slate-500 sm:block">
             Manage your internship operations
           </p>
@@ -354,12 +355,15 @@ function AdminHeader({ setOpen }) {
         >
           <Search size={15} />
           <span>Search</span>
+
           <span className="rounded border bg-slate-50 px-1.5 py-0.5 text-[10px]">
             /
           </span>
         </button>
 
-        <button className="relative rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50">
+        <button
+          className="relative rounded-xl border border-slate-200 p-2.5 text-slate-600 hover:bg-slate-50"
+        >
           <Bell size={18} />
 
           <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
@@ -376,6 +380,7 @@ function AdminHeader({ setOpen }) {
             <p className="text-xs font-semibold text-slate-800">
               Administrator
             </p>
+
             <p className="text-[10px] text-slate-500">
               Admin Account
             </p>
@@ -422,10 +427,8 @@ export default function AdminPanel() {
         <Route path="batches" element={<Batches />} />
 
         <Route path="tasks" element={<TasksAdmin />} />
-        <Route path="learn" element={<LearnAdmin />} />
-        <Route path="tasks" element={<TasksAdmin />} />
         <Route path="import-students" element={<ImportLegacyStudents />} />
-        
+        <Route path="learn" element={<LearnAdmin />} />
         <Route path="projects" element={<ProjectsAdmin />} />
 
         <Route path="approvals" element={<Approvals />} />
@@ -437,7 +440,10 @@ export default function AdminPanel() {
         <Route path="announcements" element={<AnnouncementsAdmin />} />
         <Route path="settings" element={<AdminSettings />} />
 
-        <Route path="*" element={<Navigate to="/admin" replace />} />
+        <Route
+          path="*"
+          element={<Navigate to="/admin" replace />}
+        />
       </Route>
     </Routes>
   );
