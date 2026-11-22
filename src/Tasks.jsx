@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiGet } from "./lib/api";
+import { API_BASE, apiGet } from "./lib/api";
 import {
   Search,
   ClipboardList,
@@ -14,7 +14,8 @@ import {
   Trophy,
   X,
   Filter,
-  ListTodo
+  ListTodo,
+  Download
 } from "lucide-react";
 
 const getTasks = (res) => {
@@ -230,6 +231,7 @@ export default function Tasks() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -259,6 +261,42 @@ export default function Tasks() {
   const refresh = () => {
     setRefreshing(true);
     loadTasks(false);
+  };
+
+  const downloadReport = async () => {
+    try {
+      setDownloading(true);
+      setError("");
+
+      const token =
+        localStorage.getItem("intern_token") ||
+        localStorage.getItem("access_token") ||
+        "";
+
+      const response = await fetch(`${API_BASE}/intern/tasks/report/download`, {
+        method: "GET",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to generate report.");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Internship_Task_Report.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Report download error:", e);
+      setError(e?.message || "Failed to download report.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const stats = useMemo(() => {
@@ -329,7 +367,7 @@ export default function Tasks() {
     const id = taskId(task);
     if (!id) return;
 
-    navigate(`/dash/task/${id}`);
+    navigate(`/task/${id}`);
   };
 
   const filters = [
@@ -371,6 +409,7 @@ export default function Tasks() {
           justify-content: space-between;
           gap: 16px;
           margin-bottom: 26px;
+          flex-wrap: wrap;
         }
 
         .tasks-header h1 {
@@ -387,6 +426,12 @@ export default function Tasks() {
           color: #758096;
         }
 
+        .tasks-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
         .tasks-refresh {
           display: flex;
           align-items: center;
@@ -400,6 +445,7 @@ export default function Tasks() {
           cursor: pointer;
           font-weight: 600;
           font-size: 13px;
+          white-space: nowrap;
         }
 
         .tasks-refresh:hover {
@@ -407,6 +453,31 @@ export default function Tasks() {
         }
 
         .tasks-refresh:disabled {
+          opacity: .6;
+          cursor: wait;
+        }
+
+        .tasks-download {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          height: 42px;
+          padding: 0 16px;
+          border: 1px solid #4f46e5;
+          background: #4f46e5;
+          border-radius: 10px;
+          color: #fff;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 13px;
+          white-space: nowrap;
+        }
+
+        .tasks-download:hover {
+          background: #4338ca;
+        }
+
+        .tasks-download:disabled {
           opacity: .6;
           cursor: wait;
         }
@@ -905,6 +976,15 @@ export default function Tasks() {
             line-height: 1.6;
           }
 
+          .tasks-actions {
+            width: 100%;
+          }
+
+          .tasks-download {
+            flex: 1;
+            justify-content: center;
+          }
+
           .tasks-refresh {
             width: 42px;
             padding: 0;
@@ -959,14 +1039,25 @@ export default function Tasks() {
             <p>Manage assignments, track progress and submit your work.</p>
           </div>
 
-          <button
-            className="tasks-refresh"
-            onClick={refresh}
-            disabled={refreshing}
-          >
-            <RefreshCw size={16} />
-            Refresh
-          </button>
+          <div className="tasks-actions">
+            <button
+              className="tasks-download"
+              onClick={downloadReport}
+              disabled={downloading || loading}
+            >
+              <Download size={16} />
+              {downloading ? "Generating..." : "Download Report"}
+            </button>
+
+            <button
+              className="tasks-refresh"
+              onClick={refresh}
+              disabled={refreshing}
+            >
+              <RefreshCw size={16} />
+              Refresh
+            </button>
+          </div>
         </header>
 
         <section className="tasks-stats">
