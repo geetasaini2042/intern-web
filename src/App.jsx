@@ -398,10 +398,7 @@ export default function App() {
               path="students/:studentId"
               element={<StudentDetails />}
             />
-            <Route
-              path="task/:taskId"
-              element={<StudentDetails />}
-            />
+            
             <Route
               path="programs"
               element={<Programs />}
@@ -484,7 +481,10 @@ export default function App() {
               path="tasks"
               element={<Tasks />}
             />
-
+            <Route
+              path="task/:taskId"
+              element={<TaskDetail />}
+            />
             <Route
               path="logbook"
               element={<Logbook />}
