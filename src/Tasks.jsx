@@ -367,7 +367,7 @@ export default function Tasks() {
     const id = taskId(task);
     if (!id) return;
 
-    navigate(`/task/${id}`);
+    navigate(`/dash/task/${id}`);
   };
 
   const filters = [
