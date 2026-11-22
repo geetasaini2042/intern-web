@@ -1,13 +1,8 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {API_BASE, apiGet, apiPost } from "../../lib/api";
+import { API_BASE, apiGet, apiPost } from "../../lib/api";
 
-
-const getId = (item) => item?.id || item?._id || "";
-
-const getArray = (value) =>
-  Array.isArray(value) ? value : [];
+const getArray = (value) => (Array.isArray(value) ? value : []);
 
 const formatDate = (date) => {
   if (!date) return "No deadline";
@@ -69,20 +64,11 @@ const normalizeType = (type) =>
 const normalizeFileType = (type) => {
   const t = normalizeType(type);
 
-  if (["upload", "document", "file_upload"].includes(t))
-    return "file";
-
-  if (["pdf_upload"].includes(t))
-    return "pdf";
-
-  if (["image_upload"].includes(t))
-    return "image";
-
-  if (["link", "web_url"].includes(t))
-    return "url";
-
-  if (["github_url", "repository"].includes(t))
-    return "github";
+  if (["upload", "document", "file_upload"].includes(t)) return "file";
+  if (["pdf_upload"].includes(t)) return "pdf";
+  if (["image_upload"].includes(t)) return "image";
+  if (["link", "web_url"].includes(t)) return "url";
+  if (["github_url", "repository"].includes(t)) return "github";
 
   return t;
 };
@@ -93,10 +79,7 @@ const getToken = () =>
   "";
 
 const getTaskData = (res) =>
-  res?.task ||
-  res?.data?.task ||
-  res?.data ||
-  res;
+  res?.task || res?.data?.task || res?.data || res;
 
 const getSubmissionData = (res, task) =>
   res?.submission ||
@@ -105,27 +88,16 @@ const getSubmissionData = (res, task) =>
   task?.latest_submission ||
   null;
 
-const getConfig = (task) =>
-  task?.submission_config || {};
+const getConfig = (task) => task?.submission_config || {};
 
 const getSubmissionType = (task) =>
-  normalizeFileType(
-    task?.submission_type ||
-    task?.submit_type ||
-    "text"
-  );
+  normalizeFileType(task?.submission_type || task?.submit_type || "text");
 
 const getRequirements = (task) =>
-  getArray(
-    task?.requirements ||
-    task?.checklist
-  );
+  getArray(task?.requirements || task?.checklist);
 
 const getResources = (task) =>
-  getArray(
-    task?.resources ||
-    task?.attachments
-  );
+  getArray(task?.resources || task?.attachments);
 
 const getSubmissionHistory = (submission, task) => {
   const history =
@@ -134,8 +106,7 @@ const getSubmissionHistory = (submission, task) => {
     task?.submissions ||
     [];
 
-  if (Array.isArray(history) && history.length)
-    return history;
+  if (Array.isArray(history) && history.length) return history;
 
   return submission ? [submission] : [];
 };
@@ -164,8 +135,646 @@ const getFileExtension = (file) =>
 
 const EMPTY_FIELDS = {};
 
+const STYLES = `
+  .td-page {
+    min-height: 100vh;
+    background: #f5f7fb;
+    color: #172033;
+    padding: 26px;
+    font-family: Inter, system-ui, sans-serif;
+  }
+
+  .td-container {
+    max-width: 1150px;
+    margin: auto;
+  }
+
+  .td-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 22px;
+  }
+
+  .td-back:hover {
+    color: #2563eb;
+  }
+
+  .td-header {
+    background: white;
+    border: 1px solid #e7ebf2;
+    border-radius: 18px;
+    padding: 26px;
+    margin-bottom: 20px;
+  }
+
+  .td-header-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .td-title {
+    font-size: 28px;
+    font-weight: 750;
+    letter-spacing: -0.6px;
+    margin: 0 0 10px;
+    color: #111827;
+    line-height: 1.3;
+  }
+
+  .td-subtitle {
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .td-badge {
+    display: inline-flex;
+    padding: 7px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .td-meta {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .td-meta-item {
+    background: #f8fafc;
+    border: 1px solid #edf0f5;
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .td-meta-label {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 6px;
+  }
+
+  .td-meta-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+  }
+
+  .td-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+    gap: 20px;
+  }
+
+  .td-main, .td-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .td-card {
+    background: white;
+    border: 1px solid #e7ebf2;
+    border-radius: 16px;
+    padding: 22px;
+  }
+
+  .td-card-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    font-weight: 750;
+    margin: 0 0 18px;
+    color: #172033;
+  }
+
+  .td-card-title-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 16px;
+  }
+
+  .td-description {
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.85;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .td-description p {
+    margin: 0 0 12px;
+  }
+
+  .td-description p:last-child {
+    margin-bottom: 0;
+  }
+
+  .td-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .td-list li {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .td-check {
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 5px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .td-checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 0;
+    border-bottom: 1px solid #edf0f5;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+
+  .td-checklist-item input {
+    accent-color: #2563eb;
+    margin-top: 4px;
+  }
+
+  .td-resource {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #edf0f5;
+    border-radius: 11px;
+    margin-bottom: 10px;
+    text-decoration: none;
+    color: inherit;
+    transition: .15s;
+  }
+
+  .td-resource:hover {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+  }
+
+  .td-resource-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #eff6ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2563eb;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .td-resource-name {
+    font-size: 13px;
+    font-weight: 650;
+    color: #1e293b;
+    overflow-wrap: anywhere;
+  }
+
+  .td-resource-type {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+
+  .td-form-group {
+    margin-bottom: 18px;
+  }
+
+  .td-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 650;
+    margin-bottom: 8px;
+    color: #334155;
+  }
+
+  .td-required {
+    color: #dc2626;
+    margin-left: 4px;
+  }
+
+  .td-input, .td-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #dce2ea;
+    border-radius: 10px;
+    padding: 12px 14px;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    color: #172033;
+    outline: none;
+    transition: .15s;
+  }
+
+  .td-input:focus, .td-textarea:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+  }
+
+  .td-textarea {
+    min-height: 170px;
+    resize: vertical;
+    line-height: 1.7;
+  }
+
+  .td-code-editor {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 260px;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #253044;
+    background: #111827;
+    color: #d1fae5;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    resize: vertical;
+    outline: none;
+  }
+
+  .td-code-meta {
+    background: #f1f5f9;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 13px;
+  }
+
+  .td-starter-code {
+    overflow: auto;
+    background: #111827;
+    color: #d1d5db;
+    border-radius: 10px;
+    padding: 15px;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .td-character-count {
+    text-align: right;
+    color: #94a3b8;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+
+  .td-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .td-tab {
+    border: 1px solid #e2e8f0;
+    border-radius: 9px;
+    padding: 9px 13px;
+    background: white;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .td-tab.active {
+    border-color: #2563eb;
+    color: #2563eb;
+    background: #eff6ff;
+  }
+
+  .td-file {
+    border: 1.5px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 26px;
+    text-align: center;
+    background: #f8fafc;
+  }
+
+  .td-file-icon {
+    font-size: 26px;
+    color: #2563eb;
+    margin-bottom: 8px;
+  }
+
+  .td-file input {
+    max-width: 100%;
+    margin-top: 10px;
+  }
+
+  .td-selected-files {
+    margin-top: 10px;
+  }
+
+  .td-selected-file {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #e5eaf2;
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+
+  .td-selected-file-info {
+    min-width: 0;
+  }
+
+  .td-selected-file strong {
+    display: block;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .td-selected-file small {
+    display: block;
+    margin-top: 4px;
+    color: #64748b;
+  }
+
+  .td-selected-file button {
+    color: #dc2626;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .td-button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px;
+    background: #2563eb;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    width: 100%;
+    transition: .15s;
+  }
+
+  .td-button:hover {
+    background: #1d4ed8;
+  }
+
+  .td-button:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+  }
+
+  .td-alert {
+    padding: 13px 15px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 15px;
+  }
+
+  .td-alert.error {
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+  }
+
+  .td-alert.success {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+  }
+
+  .td-alert.warning {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+  }
+
+  .td-kv {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px solid #edf0f5;
+    font-size: 13px;
+  }
+
+  .td-kv:last-child {
+    border-bottom: none;
+  }
+
+  .td-kv-label {
+    color: #64748b;
+  }
+
+  .td-kv-value {
+    color: #1e293b;
+    font-weight: 650;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .td-feedback {
+    background: #f8fafc;
+    border: 1px solid #edf0f5;
+    padding: 15px;
+    border-radius: 11px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+
+  .td-feedback-mark {
+    font-size: 24px;
+    font-weight: 800;
+    color: #2563eb;
+    margin-bottom: 8px;
+  }
+
+  .td-history-item {
+    border-left: 2px solid #dbeafe;
+    padding-left: 14px;
+    margin-bottom: 18px;
+  }
+
+  .td-history-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .td-history-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  .td-history-date {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+
+  .td-history-body {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 8px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+  }
+
+  .td-loading {
+    min-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    gap: 14px;
+  }
+
+  .td-spinner {
+    width: 30px;
+    height: 30px;
+    border: 3px solid #dbeafe;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: tdspin .8s linear infinite;
+  }
+
+  @keyframes tdspin {
+    to { transform: rotate(360deg); }
+  }
+
+  .td-error-card {
+    max-width: 500px;
+    margin: 10vh auto;
+    padding: 30px;
+    text-align: center;
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #e7ebf2;
+  }
+
+  .td-error-card button {
+    border: 0;
+    border-radius: 9px;
+    padding: 11px 16px;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+    font-weight: 650;
+  }
+
+  .td-muted {
+    color: #94a3b8;
+    font-size: 13px;
+  }
+
+  @media (max-width: 900px) {
+    .td-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .td-sidebar {
+      order: -1;
+    }
+
+    .td-meta {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .td-page {
+      padding: 14px;
+    }
+
+    .td-header {
+      padding: 19px;
+    }
+
+    .td-title {
+      font-size: 22px;
+    }
+
+    .td-header-top {
+      flex-direction: column;
+    }
+
+    .td-meta {
+      gap: 9px;
+    }
+
+    .td-meta-item {
+      padding: 12px;
+    }
+
+    .td-card {
+      padding: 17px;
+    }
+
+    .td-card-title {
+      font-size: 15px;
+    }
+
+    .td-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .td-tab {
+      text-align: center;
+    }
+  }
+`;
+
 export default function TaskDetail() {
-  const { taskId } = useParams();
+  const { taskId, id } = useParams();
+  const currentTaskId = taskId || id;
   const navigate = useNavigate();
 
   const [task, setTask] = useState(null);
@@ -190,19 +799,20 @@ export default function TaskDetail() {
   const [mixedFields, setMixedFields] = useState(EMPTY_FIELDS);
   const [mixedFiles, setMixedFiles] = useState(EMPTY_FIELDS);
 
-  const [checkedRequirements, setCheckedRequirements] =
-    useState({});
-
-  useEffect(() => {
-    loadTask();
-  }, [taskId]);
+  const [checkedRequirements, setCheckedRequirements] = useState({});
 
   const loadTask = async () => {
+    if (!currentTaskId) {
+      setLoading(false);
+      setError("Invalid task ID.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      const res = await apiGet(`/dash/tasks/${taskId}`);
+      const res = await apiGet(`/dash/tasks/${currentTaskId}`);
 
       const data = getTaskData(res);
       const sub = getSubmissionData(res, data);
@@ -210,72 +820,51 @@ export default function TaskDetail() {
       setTask(data);
       setSubmission(sub);
 
-      const savedData =
-        sub?.submission_data ||
-        sub?.data ||
-        sub ||
-        {};
+      const savedData = sub?.submission_data || sub?.data || sub || {};
 
-      setAnswer(
-        savedData.answer ||
-        savedData.text ||
-        savedData.content ||
-        ""
-      );
-
+      setAnswer(savedData.answer || savedData.text || savedData.content || "");
       setCode(savedData.code || "");
+      setSubmissionUrl(savedData.url || savedData.submission_url || "");
+      setGithubUrl(savedData.github_url || savedData.github || "");
+      setMixedFields(savedData.fields || {});
 
-      setSubmissionUrl(
-        savedData.url ||
-        savedData.submission_url ||
-        ""
-      );
-
-      setGithubUrl(
-        savedData.github_url ||
-        savedData.github ||
-        ""
-      );
-
-      setMixedFields(
-        savedData.fields || {}
-      );
-
-      setSubmissionType(
-        normalizeFileType(
-          sub?.submission_type ||
+      let resolvedType = normalizeFileType(
+        sub?.submission_type ||
           data?.submission_type ||
           data?.submit_type ||
           "text"
-        )
       );
+
+      if (resolvedType === "multiple") {
+        const cfg = getConfig(data);
+        const configured =
+          cfg.accepted_submission_modes ||
+          cfg.allowed_submission_types ||
+          cfg.types;
+
+        if (Array.isArray(configured) && configured.length) {
+          resolvedType = normalizeFileType(configured[0]);
+        } else {
+          resolvedType = "text";
+        }
+      }
+
+      setSubmissionType(resolvedType);
     } catch (e) {
       console.error("Task loading error:", e);
-
-      setError(
-        e?.message ||
-        "Unable to load task details."
-      );
+      setError(e?.message || "Unable to load task details.");
     } finally {
       setLoading(false);
     }
   };
 
-  const config = useMemo(
-    () => getConfig(task),
-    [task]
-  );
+  useEffect(() => {
+    loadTask();
+  }, [currentTaskId]);
 
-  const resources = useMemo(
-    () => getResources(task),
-    [task]
-  );
-
-  const requirements = useMemo(
-    () => getRequirements(task),
-    [task]
-  );
-
+  const config = useMemo(() => getConfig(task), [task]);
+  const resources = useMemo(() => getResources(task), [task]);
+  const requirements = useMemo(() => getRequirements(task), [task]);
   const history = useMemo(
     () => getSubmissionHistory(submission, task),
     [submission, task]
@@ -288,25 +877,15 @@ export default function TaskDetail() {
     "Pending";
 
   const status = statusStyle(currentStatus);
-
   const normalizedStatus = normalizeStatus(currentStatus);
 
-  const isApproved = [
-    "approved",
-    "completed",
-    "accepted"
-  ].includes(normalizedStatus);
-
-  const isRevision = [
-    "revision required",
-    "revision"
-  ].includes(normalizedStatus);
-
-  const isSubmitted = [
-    "submitted",
-    "under review"
-  ].includes(normalizedStatus);
-
+  const isApproved = ["approved", "completed", "accepted"].includes(
+    normalizedStatus
+  );
+  const isRevision = ["revision required", "revision"].includes(
+    normalizedStatus
+  );
+  const isSubmitted = ["submitted", "under review"].includes(normalizedStatus);
   const isLocked = isApproved;
 
   const baseType = getSubmissionType(task);
@@ -333,60 +912,36 @@ export default function TaskDetail() {
   }, [baseType, config]);
 
   const fieldsConfig = useMemo(() => {
-    const fields =
-      config.fields ||
-      config.submission_fields ||
-      [];
-
+    const fields = config.fields || config.submission_fields || [];
     return Array.isArray(fields) ? fields : [];
   }, [config]);
 
   const attemptsUsed = history.length || (submission ? 1 : 0);
 
   const maxAttempts =
-    task?.max_attempts == null
-      ? 0
-      : Number(task.max_attempts);
+    task?.max_attempts == null ? 0 : Number(task.max_attempts);
 
   const attemptsRemaining =
-    maxAttempts > 0
-      ? Math.max(maxAttempts - attemptsUsed, 0)
-      : Infinity;
+    maxAttempts > 0 ? Math.max(maxAttempts - attemptsUsed, 0) : Infinity;
 
-  const allowResubmission =
-    Boolean(task?.allow_resubmission);
+  const allowResubmission = Boolean(task?.allow_resubmission);
+  const canResubmit = isRevision || allowResubmission;
 
-  const canResubmit =
-    isRevision || allowResubmission;
-
-  const startDate = task?.start_date
-    ? new Date(task.start_date)
-    : null;
-
-  const dueDate = task?.due_date
-    ? new Date(task.due_date)
-    : null;
-
+  const startDate = task?.start_date ? new Date(task.start_date) : null;
+  const dueDate = task?.due_date ? new Date(task.due_date) : null;
   const now = Date.now();
 
   const notStarted =
-    startDate &&
-    !isNaN(startDate.getTime()) &&
-    startDate.getTime() > now;
+    startDate && !isNaN(startDate.getTime()) && startDate.getTime() > now;
 
   const deadlinePassed =
-    dueDate &&
-    !isNaN(dueDate.getTime()) &&
-    dueDate.getTime() < now;
+    dueDate && !isNaN(dueDate.getTime()) && dueDate.getTime() < now;
 
   const lateDays = Number(task?.late_days || 0);
 
   const lateDeadline =
     dueDate && lateDays > 0
-      ? new Date(
-          dueDate.getTime() +
-          lateDays * 24 * 60 * 60 * 1000
-        )
+      ? new Date(dueDate.getTime() + lateDays * 24 * 60 * 60 * 1000)
       : dueDate;
 
   const lateAllowed =
@@ -394,16 +949,13 @@ export default function TaskDetail() {
     lateDeadline &&
     now <= lateDeadline.getTime();
 
-  const lateBlocked =
-    deadlinePassed && !lateAllowed;
+  const lateBlocked = deadlinePassed && !lateAllowed;
 
   const taskInactive =
     String(task?.status || "active").toLowerCase() !== "active";
 
   const noAttempts =
-    maxAttempts > 0 &&
-    attemptsRemaining <= 0 &&
-    !isRevision;
+    maxAttempts > 0 && attemptsRemaining <= 0 && !isRevision;
 
   const shouldShowForm =
     !isLocked &&
@@ -412,6 +964,8 @@ export default function TaskDetail() {
     !lateBlocked &&
     (!submission || canResubmit) &&
     !noAttempts;
+
+  const taskType = task?.task_type || task?.type || "Assignment";
 
   const updateMixedField = (name, value) => {
     setMixedFields((previous) => ({
@@ -422,23 +976,14 @@ export default function TaskDetail() {
 
   const validateFile = (file, fileConfig = {}) => {
     const allowedFormats =
-      fileConfig.allowed_formats ||
-      config.allowed_formats ||
-      [];
+      fileConfig.allowed_formats || config.allowed_formats || [];
 
     const formats = Array.isArray(allowedFormats)
-      ? allowedFormats
-          .map((f) =>
-            String(f)
-              .toLowerCase()
-              .replace(".", "")
-          )
+      ? allowedFormats.map((f) => String(f).toLowerCase().replace(".", ""))
       : [];
 
     const maxSize = Number(
-      fileConfig.max_file_size ||
-      config.max_file_size ||
-      10
+      fileConfig.max_file_size || config.max_file_size || 10
     );
 
     if (file.size > maxSize * 1024 * 1024) {
@@ -454,33 +999,22 @@ export default function TaskDetail() {
     }
 
     const fieldType = normalizeFileType(
-      fileConfig.type ||
-      fileConfig.field_type ||
-      submissionType
+      fileConfig.type || fileConfig.field_type || submissionType
     );
 
     if (fieldType === "pdf" && file.type !== "application/pdf") {
       return "Only PDF files are allowed.";
     }
 
-    if (
-      fieldType === "image" &&
-      !file.type.startsWith("image/")
-    ) {
+    if (fieldType === "image" && !file.type.startsWith("image/")) {
       return "Only image files are allowed.";
     }
 
     return "";
   };
 
-  const handleFileChange = (
-    event,
-    fieldName = null,
-    fileConfig = {}
-  ) => {
-    const files = Array.from(
-      event.target.files || []
-    );
+  const handleFileChange = (event, fieldName = null, fileConfig = {}) => {
+    const files = Array.from(event.target.files || []);
 
     if (!files.length) return;
 
@@ -497,25 +1031,19 @@ export default function TaskDetail() {
     setError("");
 
     const multiple = Boolean(
-      fileConfig.multiple_files ??
-      config.multiple_files
+      fileConfig.multiple_files ?? config.multiple_files
     );
 
     if (fieldName) {
       setMixedFiles((previous) => ({
         ...previous,
         [fieldName]: multiple
-          ? [
-              ...(previous[fieldName] || []),
-              ...files
-            ]
+          ? [...(previous[fieldName] || []), ...files]
           : files.slice(0, 1)
       }));
     } else {
       setSelectedFiles((previous) =>
-        multiple
-          ? [...previous, ...files]
-          : files.slice(0, 1)
+        multiple ? [...previous, ...files] : files.slice(0, 1)
       );
     }
 
@@ -526,36 +1054,23 @@ export default function TaskDetail() {
     if (fieldName) {
       setMixedFiles((previous) => ({
         ...previous,
-        [fieldName]: (previous[fieldName] || []).filter(
-          (_, i) => i !== index
-        )
+        [fieldName]: (previous[fieldName] || []).filter((_, i) => i !== index)
       }));
     } else {
-      setSelectedFiles((previous) =>
-        previous.filter((_, i) => i !== index)
-      );
+      setSelectedFiles((previous) => previous.filter((_, i) => i !== index));
     }
   };
 
   const uploadFile = async (file) => {
     const token = getToken();
-
     const formData = new FormData();
-
     formData.append("file", file);
 
-    const response = await fetch(
-      `${API_BASE}/intern/upload-doc`,
-      {
-        method: "POST",
-        headers: token
-          ? {
-              Authorization: `Bearer ${token}`
-            }
-          : {},
-        body: formData
-      }
-    );
+    const response = await fetch(`${API_BASE}/intern/upload-doc`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData
+    });
 
     let result = null;
 
@@ -567,9 +1082,7 @@ export default function TaskDetail() {
 
     if (!response.ok) {
       throw new Error(
-        result?.detail ||
-        result?.message ||
-        `Upload failed for ${file.name}`
+        result?.detail || result?.message || `Upload failed for ${file.name}`
       );
     }
 
@@ -601,7 +1114,6 @@ export default function TaskDetail() {
       );
 
       const uploaded = await uploadFile(file);
-
       result.push(uploaded);
     }
 
@@ -609,10 +1121,7 @@ export default function TaskDetail() {
   };
 
   const validateSubmission = () => {
-    if (
-      config.require_requirements &&
-      requirements.length
-    ) {
+    if (config.require_requirements && requirements.length) {
       const incomplete = requirements.some(
         (_, index) => !checkedRequirements[index]
       );
@@ -627,17 +1136,11 @@ export default function TaskDetail() {
         return "Please enter your answer before submitting.";
       }
 
-      if (
-        config.min_length &&
-        answer.trim().length < Number(config.min_length)
-      ) {
+      if (config.min_length && answer.trim().length < Number(config.min_length)) {
         return `Minimum ${config.min_length} characters required.`;
       }
 
-      if (
-        config.max_length &&
-        answer.trim().length > Number(config.max_length)
-      ) {
+      if (config.max_length && answer.trim().length > Number(config.max_length)) {
         return `Maximum ${config.max_length} characters allowed.`;
       }
     }
@@ -663,11 +1166,7 @@ export default function TaskDetail() {
         return "Please enter your GitHub repository link.";
       }
 
-      if (
-        !/^https?:\/\/(www\.)?github\.com\/.+/i.test(
-          githubUrl.trim()
-        )
-      ) {
+      if (!/^https?:\/\/(www\.)?github\.com\/.+/i.test(githubUrl.trim())) {
         return "Enter a valid GitHub repository URL.";
       }
     }
@@ -680,24 +1179,17 @@ export default function TaskDetail() {
     }
 
     if (submissionType === "mixed") {
-      const requiredFields = fieldsConfig.filter(
-        (field) => field.required
-      );
+      const requiredFields = fieldsConfig.filter((field) => field.required);
 
       for (const field of requiredFields) {
         const name = field.name || field.id;
-
-        const fieldType = normalizeFileType(
-          field.type || field.field_type
-        );
+        const fieldType = normalizeFileType(field.type || field.field_type);
 
         if (["file", "pdf", "image"].includes(fieldType)) {
           if (!(mixedFiles[name] || []).length) {
             return `${field.label || name} is required.`;
           }
-        } else if (
-          !String(mixedFields[name] || "").trim()
-        ) {
+        } else if (!String(mixedFields[name] || "").trim()) {
           return `${field.label || name} is required.`;
         }
       }
@@ -706,9 +1198,7 @@ export default function TaskDetail() {
         config.require_one_field &&
         !fieldsConfig.some((field) => {
           const name = field.name || field.id;
-          const fieldType = normalizeFileType(
-            field.type || field.field_type
-          );
+          const fieldType = normalizeFileType(field.type || field.field_type);
 
           return ["file", "pdf", "image"].includes(fieldType)
             ? (mixedFiles[name] || []).length > 0
@@ -752,9 +1242,7 @@ export default function TaskDetail() {
       let filesByField = {};
 
       if (selectedFiles.length) {
-        uploadedFiles = await uploadFiles(
-          selectedFiles
-        );
+        uploadedFiles = await uploadFiles(selectedFiles);
       }
 
       if (submissionType === "mixed") {
@@ -763,22 +1251,15 @@ export default function TaskDetail() {
           const files = mixedFiles[name] || [];
 
           if (files.length) {
-            filesByField[name] = await uploadFiles(
-              files,
-              field.label || name
-            );
+            filesByField[name] = await uploadFiles(files, field.label || name);
           }
         }
       }
 
       setUploadMessage("");
 
-      const uploadedFileUrls = uploadedFiles.map(
-        (file) => file.url
-      );
-
-      const fileUrl =
-        uploadedFiles[0]?.url || "";
+      const uploadedFileUrls = uploadedFiles.map((file) => file.url);
+      const fileUrl = uploadedFiles[0]?.url || "";
 
       const data = {
         answer:
@@ -787,93 +1268,48 @@ export default function TaskDetail() {
             : submissionType === "code"
             ? code
             : "",
-
-        text:
-          submissionType === "text"
-            ? answer
-            : "",
-
-        code:
-          submissionType === "code"
-            ? code
-            : "",
-
-        url:
-          submissionType === "url"
-            ? submissionUrl
-            : "",
-
-        github_url:
-          submissionType === "github"
-            ? githubUrl
-            : "",
-
-        github:
-          submissionType === "github"
-            ? githubUrl
-            : "",
-
+        text: submissionType === "text" ? answer : "",
+        code: submissionType === "code" ? code : "",
+        url: submissionType === "url" ? submissionUrl : "",
+        github_url: submissionType === "github" ? githubUrl : "",
+        github: submissionType === "github" ? githubUrl : "",
         file_url: fileUrl,
-
-        file_name:
-          uploadedFiles[0]?.name || "",
-
+        file_name: uploadedFiles[0]?.name || "",
         files: uploadedFiles,
-
         file_urls: uploadedFileUrls,
-
         fields: mixedFields,
-
         files_by_field: filesByField
       };
 
       const payload = {
         submission_type: submissionType,
-
         answer: data.answer,
-
         text: data.text,
-
         code: data.code,
-
         url: data.url,
-
         github_url: data.github_url,
-
         github: data.github,
-
         file_url: data.file_url,
-
         file_name: data.file_name,
-
         files: data.files,
-
         file_urls: data.file_urls,
-
         fields: data.fields,
-
         files_by_field: data.files_by_field,
-
         submission_data: data,
-
         submitted_at: new Date().toISOString()
       };
 
       const res = await apiPost(
-        `/dash/tasks/${taskId}/submit`,
+        `/dash/tasks/${currentTaskId}/submit`,
         payload
       );
 
       setSubmission(
-        res?.submission ||
-        res?.data?.submission ||
-        res?.data ||
-        payload
+        res?.submission || res?.data?.submission || res?.data || payload
       );
 
       setSuccess(
-        res?.message ||
-        "Your task has been submitted successfully."
+        res?.message || "Your task has been submitted successfully."
       );
 
       setSelectedFiles([]);
@@ -883,50 +1319,28 @@ export default function TaskDetail() {
       await loadTask();
     } catch (e) {
       console.error("Submission error:", e);
-
-      setError(
-        e?.message ||
-        "Submission failed. Please try again."
-      );
+      setError(e?.message || "Submission failed. Please try again.");
     } finally {
       setSubmitting(false);
       setUploadMessage("");
     }
   };
 
-  const deadlinePassed =
-    dueDate &&
-    !isNaN(dueDate.getTime()) &&
-    dueDate.getTime() < now;
-
-  const taskType =
-    task?.task_type ||
-    task?.type ||
-    "Assignment";
-
   const fileAccept = (fileConfig = {}) => {
-    const formats =
-      fileConfig.allowed_formats ||
-      config.allowed_formats ||
-      [];
+    const formats = fileConfig.allowed_formats || config.allowed_formats || [];
 
     if (Array.isArray(formats) && formats.length) {
       return formats
         .map((format) => {
           const f = String(format).trim();
-
-          if (f.startsWith(".") || f.includes("/"))
-            return f;
-
+          if (f.startsWith(".") || f.includes("/")) return f;
           return `.${f}`;
         })
         .join(",");
     }
 
     const type = normalizeFileType(
-      fileConfig.type ||
-      fileConfig.field_type ||
-      submissionType
+      fileConfig.type || fileConfig.field_type || submissionType
     );
 
     if (type === "pdf") return ".pdf";
@@ -935,25 +1349,16 @@ export default function TaskDetail() {
     return undefined;
   };
 
-  const renderSelectedFiles = (
-    files,
-    fieldName = null
-  ) => {
+  const renderSelectedFiles = (files, fieldName = null) => {
     if (!files?.length) return null;
 
     return (
       <div className="td-selected-files">
         {files.map((file, index) => (
-          <div
-            className="td-selected-file"
-            key={`${file.name}-${index}`}
-          >
+          <div className="td-selected-file" key={`${file.name}-${index}`}>
             <div className="td-selected-file-info">
               <strong>{file.name}</strong>
-
-              <small>
-                {(file.size / 1024).toFixed(1)} KB
-              </small>
+              <small>{(file.size / 1024).toFixed(1)} KB</small>
             </div>
 
             <button
@@ -971,24 +1376,19 @@ export default function TaskDetail() {
   const renderFileInput = (
     label,
     fieldName = null,
-    fileConfig = {}
+    fileConfig = {},
+    keyProp = undefined
   ) => {
-    const files = fieldName
-      ? mixedFiles[fieldName] || []
-      : selectedFiles;
-
+    const files = fieldName ? mixedFiles[fieldName] || [] : selectedFiles;
     const multiple = Boolean(
-      fileConfig.multiple_files ??
-      config.multiple_files
+      fileConfig.multiple_files ?? config.multiple_files
     );
 
     return (
-      <div className="td-form-group">
+      <div className="td-form-group" key={keyProp}>
         <label className="td-label">
           {label}
-          {fileConfig.required && (
-            <span className="td-required">*</span>
-          )}
+          {fileConfig.required && <span className="td-required">*</span>}
         </label>
 
         <div className="td-file">
@@ -1004,9 +1404,7 @@ export default function TaskDetail() {
 
           <p className="td-muted">
             Maximum size:{" "}
-            {fileConfig.max_file_size ||
-              config.max_file_size ||
-              10} MB
+            {fileConfig.max_file_size || config.max_file_size || 10} MB
           </p>
 
           {config.allowed_formats?.length > 0 && (
@@ -1019,13 +1417,7 @@ export default function TaskDetail() {
             type="file"
             accept={fileAccept(fileConfig)}
             multiple={multiple}
-            onChange={(event) =>
-              handleFileChange(
-                event,
-                fieldName,
-                fileConfig
-              )
-            }
+            onChange={(event) => handleFileChange(event, fieldName, fileConfig)}
           />
         </div>
 
@@ -1037,23 +1429,17 @@ export default function TaskDetail() {
   const renderMixedField = (field, index) => {
     const name = field.name || field.id || `field_${index}`;
     const label = field.label || name;
-
     const fieldType = normalizeFileType(
       field.type || field.field_type || "text"
     );
-
     const required = Boolean(field.required);
 
-    if (
-      ["file", "pdf", "image"].includes(fieldType)
-    ) {
+    if (["file", "pdf", "image"].includes(fieldType)) {
       return renderFileInput(
         label,
         name,
-        {
-          ...field,
-          type: fieldType
-        }
+        { ...field, type: fieldType },
+        name
       );
     }
 
@@ -1062,20 +1448,13 @@ export default function TaskDetail() {
         <div className="td-form-group" key={name}>
           <label className="td-label">
             {label}
-            {required && (
-              <span className="td-required">*</span>
-            )}
+            {required && <span className="td-required">*</span>}
           </label>
 
           <textarea
             className="td-code-editor"
             value={mixedFields[name] || ""}
-            onChange={(event) =>
-              updateMixedField(
-                name,
-                event.target.value
-              )
-            }
+            onChange={(event) => updateMixedField(name, event.target.value)}
             placeholder={field.placeholder || ""}
             spellCheck="false"
           />
@@ -1083,32 +1462,20 @@ export default function TaskDetail() {
       );
     }
 
-    if (
-      ["url", "github"].includes(fieldType)
-    ) {
+    if (["url", "github"].includes(fieldType)) {
       return (
         <div className="td-form-group" key={name}>
           <label className="td-label">
             {label}
-            {required && (
-              <span className="td-required">*</span>
-            )}
+            {required && <span className="td-required">*</span>}
           </label>
 
           <input
             className="td-input"
             type="url"
             value={mixedFields[name] || ""}
-            onChange={(event) =>
-              updateMixedField(
-                name,
-                event.target.value
-              )
-            }
-            placeholder={
-              field.placeholder ||
-              "https://"
-            }
+            onChange={(event) => updateMixedField(name, event.target.value)}
+            placeholder={field.placeholder || "https://"}
           />
         </div>
       );
@@ -1119,49 +1486,33 @@ export default function TaskDetail() {
         <div className="td-form-group" key={name}>
           <label className="td-label">
             {label}
-            {required && (
-              <span className="td-required">*</span>
-            )}
+            {required && <span className="td-required">*</span>}
           </label>
 
           <input
             className="td-input"
             type="number"
             value={mixedFields[name] || ""}
-            onChange={(event) =>
-              updateMixedField(
-                name,
-                event.target.value
-              )
-            }
+            onChange={(event) => updateMixedField(name, event.target.value)}
             placeholder={field.placeholder || ""}
           />
         </div>
       );
     }
 
-    if (
-      ["textarea", "text", "answer"].includes(fieldType)
-    ) {
+    if (["textarea", "text", "answer"].includes(fieldType)) {
       return (
         <div className="td-form-group" key={name}>
           <label className="td-label">
             {label}
-            {required && (
-              <span className="td-required">*</span>
-            )}
+            {required && <span className="td-required">*</span>}
           </label>
 
           <textarea
             className="td-textarea"
             rows={field.rows || 5}
             value={mixedFields[name] || ""}
-            onChange={(event) =>
-              updateMixedField(
-                name,
-                event.target.value
-              )
-            }
+            onChange={(event) => updateMixedField(name, event.target.value)}
             placeholder={field.placeholder || ""}
           />
         </div>
@@ -1172,21 +1523,14 @@ export default function TaskDetail() {
       <div className="td-form-group" key={name}>
         <label className="td-label">
           {label}
-          {required && (
-            <span className="td-required">*</span>
-          )}
+          {required && <span className="td-required">*</span>}
         </label>
 
         <input
           className="td-input"
           type="text"
           value={mixedFields[name] || ""}
-          onChange={(event) =>
-            updateMixedField(
-              name,
-              event.target.value
-            )
-          }
+          onChange={(event) => updateMixedField(name, event.target.value)}
           placeholder={field.placeholder || ""}
         />
       </div>
@@ -1198,30 +1542,20 @@ export default function TaskDetail() {
       case "text":
         return (
           <div className="td-form-group">
-            <label className="td-label">
-              Your Answer / Work
-            </label>
+            <label className="td-label">Your Answer / Work</label>
 
             <textarea
               className="td-textarea"
               placeholder="Write your solution, explanation or work here..."
               value={answer}
-              onChange={(event) =>
-                setAnswer(event.target.value)
-              }
-              minLength={
-                config.min_length || undefined
-              }
-              maxLength={
-                config.max_length || undefined
-              }
+              onChange={(event) => setAnswer(event.target.value)}
+              minLength={config.min_length || undefined}
+              maxLength={config.max_length || undefined}
             />
 
             <div className="td-character-count">
               {answer.length}
-              {config.max_length
-                ? ` / ${config.max_length}`
-                : " characters"}
+              {config.max_length ? ` / ${config.max_length}` : " characters"}
             </div>
           </div>
         );
@@ -1232,36 +1566,25 @@ export default function TaskDetail() {
             <div className="td-code-meta">
               <span>
                 Language:{" "}
-                <strong>
-                  {config.code_language || "Not specified"}
-                </strong>
+                <strong>{config.code_language || "Not specified"}</strong>
               </span>
             </div>
 
             {config.starter_code && (
               <div className="td-form-group">
-                <label className="td-label">
-                  Starter Code
-                </label>
-
-                <pre className="td-starter-code">
-                  {config.starter_code}
-                </pre>
+                <label className="td-label">Starter Code</label>
+                <pre className="td-starter-code">{config.starter_code}</pre>
               </div>
             )}
 
             <div className="td-form-group">
-              <label className="td-label">
-                Your Code
-              </label>
+              <label className="td-label">Your Code</label>
 
               <textarea
                 className="td-code-editor"
                 placeholder="Write or paste your code here..."
                 value={code}
-                onChange={(event) =>
-                  setCode(event.target.value)
-                }
+                onChange={(event) => setCode(event.target.value)}
                 spellCheck="false"
               />
             </div>
@@ -1269,39 +1592,25 @@ export default function TaskDetail() {
         );
 
       case "file":
-        return renderFileInput(
-          "Upload your submission"
-        );
+        return renderFileInput("Upload your submission");
 
       case "pdf":
-        return renderFileInput(
-          "Upload PDF document",
-          null,
-          { type: "pdf" }
-        );
+        return renderFileInput("Upload PDF document", null, { type: "pdf" });
 
       case "image":
-        return renderFileInput(
-          "Upload image",
-          null,
-          { type: "image" }
-        );
+        return renderFileInput("Upload image", null, { type: "image" });
 
       case "url":
         return (
           <div className="td-form-group">
-            <label className="td-label">
-              Submission URL
-            </label>
+            <label className="td-label">Submission URL</label>
 
             <input
               className="td-input"
               type="url"
               placeholder="https://"
               value={submissionUrl}
-              onChange={(event) =>
-                setSubmissionUrl(event.target.value)
-              }
+              onChange={(event) => setSubmissionUrl(event.target.value)}
             />
           </div>
         );
@@ -1309,18 +1618,14 @@ export default function TaskDetail() {
       case "github":
         return (
           <div className="td-form-group">
-            <label className="td-label">
-              GitHub Repository URL
-            </label>
+            <label className="td-label">GitHub Repository URL</label>
 
             <input
               className="td-input"
               type="url"
               placeholder="https://github.com/username/repository"
               value={githubUrl}
-              onChange={(event) =>
-                setGithubUrl(event.target.value)
-              }
+              onChange={(event) => setGithubUrl(event.target.value)}
             />
           </div>
         );
@@ -1328,9 +1633,7 @@ export default function TaskDetail() {
       case "mixed":
         return (
           <>
-            {fieldsConfig.map((field, index) =>
-              renderMixedField(field, index)
-            )}
+            {fieldsConfig.map((field, index) => renderMixedField(field, index))}
 
             {!fieldsConfig.length && (
               <div className="td-alert warning">
@@ -1344,16 +1647,12 @@ export default function TaskDetail() {
         return (
           <>
             <div className="td-form-group">
-              <label className="td-label">
-                Your Answer
-              </label>
+              <label className="td-label">Your Answer</label>
 
               <textarea
                 className="td-textarea"
                 value={answer}
-                onChange={(event) =>
-                  setAnswer(event.target.value)
-                }
+                onChange={(event) => setAnswer(event.target.value)}
                 placeholder="Enter your submission..."
               />
             </div>
@@ -1367,6 +1666,7 @@ export default function TaskDetail() {
   if (loading) {
     return (
       <div className="td-page">
+        <style>{STYLES}</style>
         <div className="td-loading">
           <div className="td-spinner" />
           <p>Loading task details...</p>
@@ -1378,15 +1678,12 @@ export default function TaskDetail() {
   if (!task) {
     return (
       <div className="td-page">
+        <style>{STYLES}</style>
         <div className="td-error-card">
           <h2>Task not found</h2>
-          <p>
-            The task may have been removed or is unavailable.
-          </p>
+          <p>{error || "The task may have been removed or is unavailable."}</p>
 
-          <button
-            onClick={() => navigate("/dash/tasks")}
-          >
+          <button onClick={() => navigate("/dash/tasks")}>
             Back to My Tasks
           </button>
         </div>
@@ -1396,656 +1693,10 @@ export default function TaskDetail() {
 
   return (
     <div className="td-page">
-      <style>{`
-        .td-page {
-          min-height: 100vh;
-          background: #f5f7fb;
-          color: #172033;
-          padding: 26px;
-          font-family: Inter, system-ui, sans-serif;
-        }
-
-        .td-container {
-          max-width: 1150px;
-          margin: auto;
-        }
-
-        .td-back {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          border: none;
-          background: transparent;
-          color: #64748b;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          padding: 0;
-          margin-bottom: 22px;
-        }
-
-        .td-back:hover {
-          color: #2563eb;
-        }
-
-        .td-header {
-          background: white;
-          border: 1px solid #e7ebf2;
-          border-radius: 18px;
-          padding: 26px;
-          margin-bottom: 20px;
-        }
-
-        .td-header-top {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 20px;
-        }
-
-        .td-title {
-          font-size: 28px;
-          font-weight: 750;
-          letter-spacing: -0.6px;
-          margin: 0 0 10px;
-          color: #111827;
-          line-height: 1.3;
-        }
-
-        .td-subtitle {
-          color: #64748b;
-          font-size: 14px;
-          line-height: 1.6;
-          margin: 0;
-        }
-
-        .td-badge {
-          display: inline-flex;
-          padding: 7px 12px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 700;
-          white-space: nowrap;
-        }
-
-        .td-meta {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 12px;
-          margin-top: 24px;
-        }
-
-        .td-meta-item {
-          background: #f8fafc;
-          border: 1px solid #edf0f5;
-          padding: 14px;
-          border-radius: 12px;
-        }
-
-        .td-meta-label {
-          font-size: 12px;
-          color: #64748b;
-          margin-bottom: 6px;
-        }
-
-        .td-meta-value {
-          font-size: 14px;
-          font-weight: 700;
-          color: #1e293b;
-        }
-
-        .td-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) 340px;
-          align-items: start;
-          gap: 20px;
-        }
-
-        .td-main, .td-sidebar {
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-        }
-
-        .td-card {
-          background: white;
-          border: 1px solid #e7ebf2;
-          border-radius: 16px;
-          padding: 22px;
-        }
-
-        .td-card-title {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 16px;
-          font-weight: 750;
-          margin: 0 0 18px;
-          color: #172033;
-        }
-
-        .td-card-title-icon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 34px;
-          height: 34px;
-          border-radius: 10px;
-          background: #eff6ff;
-          color: #2563eb;
-          font-size: 16px;
-        }
-
-        .td-description {
-          color: #475569;
-          font-size: 14px;
-          line-height: 1.85;
-          white-space: pre-wrap;
-          overflow-wrap: anywhere;
-        }
-
-        .td-description p {
-          margin: 0 0 12px;
-        }
-
-        .td-description p:last-child {
-          margin-bottom: 0;
-        }
-
-        .td-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .td-list li {
-          display: flex;
-          gap: 11px;
-          align-items: flex-start;
-          color: #475569;
-          font-size: 14px;
-          line-height: 1.65;
-        }
-
-        .td-check {
-          width: 18px;
-          height: 18px;
-          border: 1.5px solid #cbd5e1;
-          border-radius: 5px;
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-
-        .td-checklist-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          padding: 11px 0;
-          border-bottom: 1px solid #edf0f5;
-          color: #475569;
-          font-size: 14px;
-          line-height: 1.65;
-        }
-
-        .td-checklist-item input {
-          accent-color: #2563eb;
-          margin-top: 4px;
-        }
-
-        .td-resource {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px;
-          border: 1px solid #edf0f5;
-          border-radius: 11px;
-          margin-bottom: 10px;
-          text-decoration: none;
-          color: inherit;
-          transition: .15s;
-        }
-
-        .td-resource:hover {
-          border-color: #bfdbfe;
-          background: #f8fbff;
-        }
-
-        .td-resource-icon {
-          width: 38px;
-          height: 38px;
-          border-radius: 10px;
-          background: #eff6ff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #2563eb;
-          font-size: 16px;
-          flex-shrink: 0;
-        }
-
-        .td-resource-name {
-          font-size: 13px;
-          font-weight: 650;
-          color: #1e293b;
-          overflow-wrap: anywhere;
-        }
-
-        .td-resource-type {
-          font-size: 11px;
-          color: #94a3b8;
-          margin-top: 4px;
-        }
-
-        .td-form-group {
-          margin-bottom: 18px;
-        }
-
-        .td-label {
-          display: block;
-          font-size: 13px;
-          font-weight: 650;
-          margin-bottom: 8px;
-          color: #334155;
-        }
-
-        .td-required {
-          color: #dc2626;
-          margin-left: 4px;
-        }
-
-        .td-input, .td-textarea {
-          width: 100%;
-          box-sizing: border-box;
-          border: 1px solid #dce2ea;
-          border-radius: 10px;
-          padding: 12px 14px;
-          background: #fff;
-          font: inherit;
-          font-size: 14px;
-          color: #172033;
-          outline: none;
-          transition: .15s;
-        }
-
-        .td-input:focus, .td-textarea:focus {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 3px rgba(59,130,246,.1);
-        }
-
-        .td-textarea {
-          min-height: 170px;
-          resize: vertical;
-          line-height: 1.7;
-        }
-
-        .td-code-editor {
-          width: 100%;
-          box-sizing: border-box;
-          min-height: 260px;
-          padding: 16px;
-          border-radius: 12px;
-          border: 1px solid #253044;
-          background: #111827;
-          color: #d1fae5;
-          font-family: monospace;
-          font-size: 13px;
-          line-height: 1.65;
-          resize: vertical;
-          outline: none;
-        }
-
-        .td-code-meta {
-          background: #f1f5f9;
-          border-radius: 8px;
-          padding: 10px;
-          margin-bottom: 15px;
-          font-size: 13px;
-        }
-
-        .td-starter-code {
-          overflow: auto;
-          background: #111827;
-          color: #d1d5db;
-          border-radius: 10px;
-          padding: 15px;
-          font-size: 12px;
-          line-height: 1.6;
-        }
-
-        .td-character-count {
-          text-align: right;
-          color: #94a3b8;
-          font-size: 12px;
-          margin-top: 6px;
-        }
-
-        .td-tabs {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-bottom: 18px;
-        }
-
-        .td-tab {
-          border: 1px solid #e2e8f0;
-          border-radius: 9px;
-          padding: 9px 13px;
-          background: white;
-          color: #64748b;
-          font-size: 12px;
-          font-weight: 650;
-          cursor: pointer;
-        }
-
-        .td-tab.active {
-          border-color: #2563eb;
-          color: #2563eb;
-          background: #eff6ff;
-        }
-
-        .td-file {
-          border: 1.5px dashed #cbd5e1;
-          border-radius: 12px;
-          padding: 26px;
-          text-align: center;
-          background: #f8fafc;
-        }
-
-        .td-file-icon {
-          font-size: 26px;
-          color: #2563eb;
-          margin-bottom: 8px;
-        }
-
-        .td-file input {
-          max-width: 100%;
-          margin-top: 10px;
-        }
-
-        .td-file-name {
-          margin-top: 12px;
-          color: #2563eb;
-          font-size: 13px;
-          font-weight: 600;
-          overflow-wrap: anywhere;
-        }
-
-        .td-selected-files {
-          margin-top: 10px;
-        }
-
-        .td-selected-file {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          padding: 12px;
-          border: 1px solid #e5eaf2;
-          border-radius: 10px;
-          margin-bottom: 8px;
-        }
-
-        .td-selected-file-info {
-          min-width: 0;
-        }
-
-        .td-selected-file strong {
-          display: block;
-          font-size: 13px;
-          overflow-wrap: anywhere;
-        }
-
-        .td-selected-file small {
-          display: block;
-          margin-top: 4px;
-          color: #64748b;
-        }
-
-        .td-selected-file button {
-          color: #dc2626;
-          border: none;
-          background: transparent;
-          cursor: pointer;
-        }
-
-        .td-button {
-          display: inline-flex;
-          justify-content: center;
-          align-items: center;
-          gap: 8px;
-          padding: 12px 18px;
-          background: #2563eb;
-          color: white;
-          border: none;
-          border-radius: 10px;
-          font-size: 14px;
-          font-weight: 700;
-          cursor: pointer;
-          width: 100%;
-          transition: .15s;
-        }
-
-        .td-button:hover {
-          background: #1d4ed8;
-        }
-
-        .td-button:disabled {
-          opacity: .55;
-          cursor: not-allowed;
-        }
-
-        .td-alert {
-          padding: 13px 15px;
-          border-radius: 10px;
-          font-size: 13px;
-          line-height: 1.6;
-          margin-bottom: 15px;
-        }
-
-        .td-alert.error {
-          background: #fef2f2;
-          color: #b91c1c;
-          border: 1px solid #fecaca;
-        }
-
-        .td-alert.success {
-          background: #f0fdf4;
-          color: #15803d;
-          border: 1px solid #bbf7d0;
-        }
-
-        .td-alert.warning {
-          background: #fffbeb;
-          color: #92400e;
-          border: 1px solid #fde68a;
-        }
-
-        .td-kv {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 11px 0;
-          border-bottom: 1px solid #edf0f5;
-          font-size: 13px;
-        }
-
-        .td-kv:last-child {
-          border-bottom: none;
-        }
-
-        .td-kv-label {
-          color: #64748b;
-        }
-
-        .td-kv-value {
-          color: #1e293b;
-          font-weight: 650;
-          text-align: right;
-          overflow-wrap: anywhere;
-        }
-
-        .td-feedback {
-          background: #f8fafc;
-          border: 1px solid #edf0f5;
-          padding: 15px;
-          border-radius: 11px;
-          color: #475569;
-          font-size: 13px;
-          line-height: 1.7;
-          white-space: pre-wrap;
-        }
-
-        .td-feedback-mark {
-          font-size: 24px;
-          font-weight: 800;
-          color: #2563eb;
-          margin-bottom: 8px;
-        }
-
-        .td-history-item {
-          border-left: 2px solid #dbeafe;
-          padding-left: 14px;
-          margin-bottom: 18px;
-        }
-
-        .td-history-item:last-child {
-          margin-bottom: 0;
-        }
-
-        .td-history-title {
-          font-size: 13px;
-          font-weight: 700;
-          color: #334155;
-        }
-
-        .td-history-date {
-          font-size: 11px;
-          color: #94a3b8;
-          margin-top: 4px;
-        }
-
-        .td-history-body {
-          font-size: 13px;
-          color: #64748b;
-          margin-top: 8px;
-          line-height: 1.6;
-          overflow-wrap: anywhere;
-        }
-
-        .td-loading {
-          min-height: 70vh;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          color: #64748b;
-          gap: 14px;
-        }
-
-        .td-spinner {
-          width: 30px;
-          height: 30px;
-          border: 3px solid #dbeafe;
-          border-top-color: #2563eb;
-          border-radius: 50%;
-          animation: tdspin .8s linear infinite;
-        }
-
-        @keyframes tdspin {
-          to { transform: rotate(360deg); }
-        }
-
-        .td-error-card {
-          max-width: 500px;
-          margin: 10vh auto;
-          padding: 30px;
-          text-align: center;
-          background: white;
-          border-radius: 16px;
-          border: 1px solid #e7ebf2;
-        }
-
-        .td-error-card button {
-          border: 0;
-          border-radius: 9px;
-          padding: 11px 16px;
-          background: #2563eb;
-          color: white;
-          cursor: pointer;
-          font-weight: 650;
-        }
-
-        .td-muted {
-          color: #94a3b8;
-          font-size: 13px;
-        }
-
-        @media (max-width: 900px) {
-          .td-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .td-sidebar {
-            order: -1;
-          }
-
-          .td-meta {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-
-        @media (max-width: 600px) {
-          .td-page {
-            padding: 14px;
-          }
-
-          .td-header {
-            padding: 19px;
-          }
-
-          .td-title {
-            font-size: 22px;
-          }
-
-          .td-header-top {
-            flex-direction: column;
-          }
-
-          .td-meta {
-            gap: 9px;
-          }
-
-          .td-meta-item {
-            padding: 12px;
-          }
-
-          .td-card {
-            padding: 17px;
-          }
-
-          .td-card-title {
-            font-size: 15px;
-          }
-
-          .td-tabs {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .td-tab {
-            text-align: center;
-          }
-        }
-      `}</style>
+      <style>{STYLES}</style>
 
       <div className="td-container">
-        <button
-          className="td-back"
-          onClick={() => navigate("/dash/tasks")}
-        >
+        <button className="td-back" onClick={() => navigate("/dash/tasks")}>
           ← Back to My Tasks
         </button>
 
@@ -2061,10 +1712,7 @@ export default function TaskDetail() {
                   task.program?.title ||
                   "Internship Program"}
                 {task.batch_name || task.batch?.name
-                  ? ` · ${
-                      task.batch_name ||
-                      task.batch?.name
-                    }`
+                  ? ` · ${task.batch_name || task.batch?.name}`
                   : ""}
               </p>
             </div>
@@ -2088,9 +1736,7 @@ export default function TaskDetail() {
 
             <div className="td-meta-item">
               <div className="td-meta-label">Due Date</div>
-              <div className="td-meta-value">
-                {formatDate(task.due_date)}
-              </div>
+              <div className="td-meta-value">{formatDate(task.due_date)}</div>
             </div>
 
             <div className="td-meta-item">
@@ -2141,10 +1787,7 @@ export default function TaskDetail() {
                 </h2>
 
                 {requirements.map((item, index) => (
-                  <label
-                    className="td-checklist-item"
-                    key={index}
-                  >
+                  <label className="td-checklist-item" key={index}>
                     <input
                       type="checkbox"
                       checked={Boolean(checkedRequirements[index])}
@@ -2159,9 +1802,7 @@ export default function TaskDetail() {
                     <span>
                       {typeof item === "string"
                         ? item
-                        : item.title ||
-                          item.text ||
-                          item.description}
+                        : item.title || item.text || item.description}
                     </span>
                   </label>
                 ))}
@@ -2194,8 +1835,7 @@ export default function TaskDetail() {
                   const resourceType =
                     typeof resource === "string"
                       ? "Reference"
-                      : resource.type ||
-                        "Reference Resource";
+                      : resource.type || "Reference Resource";
 
                   return (
                     <a
@@ -2214,13 +1854,8 @@ export default function TaskDetail() {
                       </div>
 
                       <div>
-                        <div className="td-resource-name">
-                          {title}
-                        </div>
-
-                        <div className="td-resource-type">
-                          {resourceType}
-                        </div>
+                        <div className="td-resource-name">{title}</div>
+                        <div className="td-resource-type">{resourceType}</div>
                       </div>
                     </a>
                   );
@@ -2236,24 +1871,22 @@ export default function TaskDetail() {
                 </h2>
 
                 <ul className="td-list">
-                  {task.grading_criteria.map(
-                    (criteria, index) => (
-                      <li key={index}>
-                        <span className="td-check" />
+                  {task.grading_criteria.map((criteria, index) => (
+                    <li key={index}>
+                      <span className="td-check" />
 
-                        <span>
-                          {typeof criteria === "string"
-                            ? criteria
-                            : criteria.title ||
-                              criteria.name ||
-                              criteria.description}
-                          {criteria.marks != null
-                            ? ` — ${criteria.marks} marks`
-                            : ""}
-                        </span>
-                      </li>
-                    )
-                  )}
+                      <span>
+                        {typeof criteria === "string"
+                          ? criteria
+                          : criteria.title ||
+                            criteria.name ||
+                            criteria.description}
+                        {criteria.marks != null
+                          ? ` — ${criteria.marks} marks`
+                          : ""}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
               </section>
             )}
@@ -2276,8 +1909,8 @@ export default function TaskDetail() {
 
                 {isRevision && (
                   <div className="td-alert warning">
-                    Your mentor has requested changes.
-                    Review the feedback below and submit your updated work.
+                    Your mentor has requested changes. Review the feedback below
+                    and submit your updated work.
                   </div>
                 )}
 
@@ -2287,22 +1920,10 @@ export default function TaskDetail() {
                   </div>
                 )}
 
-                {error && (
-                  <div className="td-alert error">
-                    {error}
-                  </div>
-                )}
-
-                {success && (
-                  <div className="td-alert success">
-                    {success}
-                  </div>
-                )}
-
+                {error && <div className="td-alert error">{error}</div>}
+                {success && <div className="td-alert success">{success}</div>}
                 {uploadMessage && (
-                  <div className="td-alert warning">
-                    {uploadMessage}
-                  </div>
+                  <div className="td-alert warning">{uploadMessage}</div>
                 )}
 
                 <form onSubmit={handleSubmit}>
@@ -2313,9 +1934,7 @@ export default function TaskDetail() {
                           type="button"
                           key={type}
                           className={`td-tab ${
-                            submissionType === type
-                              ? "active"
-                              : ""
+                            submissionType === type ? "active" : ""
                           }`}
                           onClick={() => {
                             setSubmissionType(type);
@@ -2344,7 +1963,8 @@ export default function TaskDetail() {
 
                   {submissionType === "mixed" && (
                     <div className="td-alert warning">
-                      Complete the submission fields configured by your administrator.
+                      Complete the submission fields configured by your
+                      administrator.
                     </div>
                   )}
 
@@ -2367,9 +1987,7 @@ export default function TaskDetail() {
 
             {!shouldShowForm && !isLocked && (
               <section className="td-card">
-                <h2 className="td-card-title">
-                  Submission Status
-                </h2>
+                <h2 className="td-card-title">Submission Status</h2>
 
                 {taskInactive && (
                   <div className="td-alert warning">
@@ -2386,7 +2004,8 @@ export default function TaskDetail() {
 
                 {lateBlocked && (
                   <div className="td-alert error">
-                    The submission deadline has passed and late submissions are not allowed.
+                    The submission deadline has passed and late submissions are
+                    not allowed.
                   </div>
                 )}
 
@@ -2398,8 +2017,8 @@ export default function TaskDetail() {
 
                 {submission && !canResubmit && (
                   <div className="td-alert warning">
-                    Your submission has already been submitted.
-                    Resubmission is not allowed.
+                    Your submission has already been submitted. Resubmission is
+                    not allowed.
                   </div>
                 )}
               </section>
@@ -2441,8 +2060,7 @@ export default function TaskDetail() {
 
                   <span className="td-kv-value">
                     {formatDateTime(
-                      submission.submitted_at ||
-                      submission.created_at
+                      submission.submitted_at || submission.created_at
                     )}
                   </span>
                 </div>
@@ -2453,9 +2071,7 @@ export default function TaskDetail() {
 
                     <span className="td-kv-value">
                       {submission.marks}
-                      {task.max_marks != null
-                        ? ` / ${task.max_marks}`
-                        : ""}
+                      {task.max_marks != null ? ` / ${task.max_marks}` : ""}
                     </span>
                   </div>
                 )}
@@ -2464,9 +2080,7 @@ export default function TaskDetail() {
                   submission.text ||
                   submission.submission_data?.answer) && (
                   <div style={{ marginTop: 16 }}>
-                    <div className="td-label">
-                      Submitted Answer
-                    </div>
+                    <div className="td-label">Submitted Answer</div>
 
                     <div className="td-feedback">
                       {submission.answer ||
@@ -2476,16 +2090,12 @@ export default function TaskDetail() {
                   </div>
                 )}
 
-                {(submission.code ||
-                  submission.submission_data?.code) && (
+                {(submission.code || submission.submission_data?.code) && (
                   <div style={{ marginTop: 16 }}>
-                    <div className="td-label">
-                      Submitted Code
-                    </div>
+                    <div className="td-label">Submitted Code</div>
 
                     <pre className="td-starter-code">
-                      {submission.code ||
-                        submission.submission_data?.code}
+                      {submission.code || submission.submission_data?.code}
                     </pre>
                   </div>
                 )}
@@ -2521,10 +2131,7 @@ export default function TaskDetail() {
                   submission.submission_data?.files ||
                   []
                 ).map((file, index) => (
-                  <div
-                    key={index}
-                    style={{ marginTop: 12 }}
-                  >
+                  <div key={index} style={{ marginTop: 12 }}>
                     <a
                       href={typeof file === "string" ? file : file.url}
                       target="_blank"
@@ -2538,8 +2145,8 @@ export default function TaskDetail() {
                     >
                       {typeof file === "string"
                         ? `Uploaded File ${index + 1}`
-                        : file.name || `Uploaded File ${index + 1}`}
-                      {" "}↗
+                        : file.name || `Uploaded File ${index + 1}`}{" "}
+                      ↗
                     </a>
                   </div>
                 ))}
@@ -2564,8 +2171,8 @@ export default function TaskDetail() {
             )}
 
             {submission?.feedback ||
-              submission?.review_comment ||
-              task?.feedback ? (
+            submission?.review_comment ||
+            task?.feedback ? (
               <section className="td-card">
                 <h2 className="td-card-title">
                   <span className="td-card-title-icon">✦</span>
@@ -2574,8 +2181,7 @@ export default function TaskDetail() {
 
                 {submission?.marks != null && (
                   <div className="td-feedback-mark">
-                    {submission.marks} /{" "}
-                    {task.max_marks || task.marks || "—"}
+                    {submission.marks} / {task.max_marks || task.marks || "—"}
                   </div>
                 )}
 
@@ -2590,9 +2196,7 @@ export default function TaskDetail() {
 
           <aside className="td-sidebar">
             <section className="td-card">
-              <h2 className="td-card-title">
-                Task Overview
-              </h2>
+              <h2 className="td-card-title">Task Overview</h2>
 
               <div className="td-kv">
                 <span className="td-kv-label">Status</span>
@@ -2607,7 +2211,6 @@ export default function TaskDetail() {
 
               <div className="td-kv">
                 <span className="td-kv-label">Start Date</span>
-
                 <span className="td-kv-value">
                   {formatDate(task.start_date)}
                 </span>
@@ -2615,15 +2218,11 @@ export default function TaskDetail() {
 
               <div className="td-kv">
                 <span className="td-kv-label">Deadline</span>
-
-                <span className="td-kv-value">
-                  {formatDate(task.due_date)}
-                </span>
+                <span className="td-kv-value">{formatDate(task.due_date)}</span>
               </div>
 
               <div className="td-kv">
                 <span className="td-kv-label">Marks</span>
-
                 <span className="td-kv-value">
                   {task.max_marks ?? task.marks ?? "Not specified"}
                 </span>
@@ -2631,15 +2230,11 @@ export default function TaskDetail() {
 
               <div className="td-kv">
                 <span className="td-kv-label">Task Type</span>
-
-                <span className="td-kv-value">
-                  {taskType}
-                </span>
+                <span className="td-kv-value">{taskType}</span>
               </div>
 
               <div className="td-kv">
                 <span className="td-kv-label">Difficulty</span>
-
                 <span className="td-kv-value">
                   {task.difficulty || "Not specified"}
                 </span>
@@ -2647,7 +2242,6 @@ export default function TaskDetail() {
 
               <div className="td-kv">
                 <span className="td-kv-label">Estimated Time</span>
-
                 <span className="td-kv-value">
                   {task.estimated_hours
                     ? `${task.estimated_hours} hours`
@@ -2657,48 +2251,32 @@ export default function TaskDetail() {
 
               <div className="td-kv">
                 <span className="td-kv-label">Program</span>
-
                 <span className="td-kv-value">
-                  {task.program_name ||
-                    task.program?.title ||
-                    "—"}
+                  {task.program_name || task.program?.title || "—"}
                 </span>
               </div>
 
               <div className="td-kv">
                 <span className="td-kv-label">Batch</span>
-
                 <span className="td-kv-value">
-                  {task.batch_name ||
-                    task.batch?.name ||
-                    "—"}
+                  {task.batch_name || task.batch?.name || "—"}
                 </span>
               </div>
             </section>
 
             <section className="td-card">
-              <h2 className="td-card-title">
-                Submission Rules
-              </h2>
+              <h2 className="td-card-title">Submission Rules</h2>
 
               <div className="td-kv">
-                <span className="td-kv-label">
-                  Resubmission
-                </span>
-
+                <span className="td-kv-label">Resubmission</span>
                 <span className="td-kv-value">
-                  {task.allow_resubmission
-                    ? "Allowed"
-                    : "Not Allowed"}
+                  {task.allow_resubmission ? "Allowed" : "Not Allowed"}
                 </span>
               </div>
 
               {maxAttempts > 0 && (
                 <div className="td-kv">
-                  <span className="td-kv-label">
-                    Attempts
-                  </span>
-
+                  <span className="td-kv-label">Attempts</span>
                   <span className="td-kv-value">
                     {attemptsUsed} / {maxAttempts}
                   </span>
@@ -2706,10 +2284,7 @@ export default function TaskDetail() {
               )}
 
               <div className="td-kv">
-                <span className="td-kv-label">
-                  Late Submission
-                </span>
-
+                <span className="td-kv-label">Late Submission</span>
                 <span className="td-kv-value">
                   {task.allow_late_submission
                     ? `Allowed (${lateDays} days)`
@@ -2719,10 +2294,7 @@ export default function TaskDetail() {
 
               {config.max_file_size && (
                 <div className="td-kv">
-                  <span className="td-kv-label">
-                    Maximum File Size
-                  </span>
-
+                  <span className="td-kv-label">Maximum File Size</span>
                   <span className="td-kv-value">
                     {config.max_file_size} MB
                   </span>
@@ -2731,10 +2303,7 @@ export default function TaskDetail() {
 
               {config.allowed_formats?.length > 0 && (
                 <div className="td-kv">
-                  <span className="td-kv-label">
-                    Allowed Formats
-                  </span>
-
+                  <span className="td-kv-label">Allowed Formats</span>
                   <span className="td-kv-value">
                     {config.allowed_formats.join(", ")}
                   </span>
@@ -2744,9 +2313,7 @@ export default function TaskDetail() {
 
             {submission?.marks != null && (
               <section className="td-card">
-                <h2 className="td-card-title">
-                  Your Score
-                </h2>
+                <h2 className="td-card-title">Your Score</h2>
 
                 <div style={{ textAlign: "center", padding: "12px 0" }}>
                   <div
@@ -2760,8 +2327,7 @@ export default function TaskDetail() {
                   </div>
 
                   <div className="td-muted">
-                    out of{" "}
-                    {task.max_marks || task.marks || "—"} marks
+                    out of {task.max_marks || task.marks || "—"} marks
                   </div>
                 </div>
               </section>
@@ -2769,9 +2335,7 @@ export default function TaskDetail() {
 
             {history.length > 0 && (
               <section className="td-card">
-                <h2 className="td-card-title">
-                  Submission History
-                </h2>
+                <h2 className="td-card-title">Submission History</h2>
 
                 {history.map((item, index) => (
                   <div
@@ -2783,18 +2347,12 @@ export default function TaskDetail() {
                     </div>
 
                     <div className="td-history-date">
-                      {formatDateTime(
-                        item.submitted_at ||
-                        item.created_at
-                      )}
+                      {formatDateTime(item.submitted_at || item.created_at)}
                     </div>
 
                     <div className="td-history-body">
                       {item.status || "Submitted"}
-
-                      {item.marks != null
-                        ? ` · Marks: ${item.marks}`
-                        : ""}
+                      {item.marks != null ? ` · Marks: ${item.marks}` : ""}
                     </div>
 
                     {item.feedback && (
@@ -2808,13 +2366,11 @@ export default function TaskDetail() {
             )}
 
             <section className="td-card">
-              <h2 className="td-card-title">
-                Need Help?
-              </h2>
+              <h2 className="td-card-title">Need Help?</h2>
 
               <p className="td-description">
-                If you have any questions regarding this task,
-                contact your mentor or internship coordinator.
+                If you have any questions regarding this task, contact your
+                mentor or internship coordinator.
               </p>
 
               <button

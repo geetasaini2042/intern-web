@@ -18,6 +18,7 @@ import Attendance from "./Attendance";
 import Profile from "./Profile";
 import AdminPanel from "./AdminPanel";
 import Tasks from "./Tasks";
+import TaskDetail from "./pages/student/TaskDetail";
 import Logbook from "./Logbook";
 import Projects from "./Projects";
 import Certificates from "./Certificates";
@@ -397,7 +398,10 @@ export default function App() {
               path="students/:studentId"
               element={<StudentDetails />}
             />
-
+            <Route
+              path="task/:taskId"
+              element={<StudentDetails />}
+            />
             <Route
               path="programs"
               element={<Programs />}

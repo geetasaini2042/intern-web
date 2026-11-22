@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiGet } from "./lib/api";
@@ -284,7 +283,7 @@ export default function Tasks() {
     if (search.trim()) {
       const q = search.toLowerCase();
 
-      list = list.filter(t =>
+      list = list.filter(task =>
         [
           task.title,
           task.description,
@@ -330,7 +329,7 @@ export default function Tasks() {
     const id = taskId(task);
     if (!id) return;
 
-    navigate(`/dash/tasks/${id}`);
+    navigate(`/task/${id}`);
   };
 
   const filters = [
@@ -943,7 +942,7 @@ export default function Tasks() {
             justify-content: space-between;
           }
 
-          .tasks-card {
+          .task-card {
             padding: 15px;
           }
 
@@ -954,7 +953,6 @@ export default function Tasks() {
       `}</style>
 
       <div className="tasks-container">
-
         <header className="tasks-header">
           <div>
             <h1>My Tasks</h1>
@@ -972,7 +970,6 @@ export default function Tasks() {
         </header>
 
         <section className="tasks-stats">
-
           <div className="tasks-stat">
             <div className="tasks-stat-top">
               <span className="tasks-stat-label">Total Tasks</span>
@@ -1016,7 +1013,6 @@ export default function Tasks() {
             <div className="tasks-stat-value">{stats.completed}</div>
             <div className="tasks-stat-sub">Successfully completed</div>
           </div>
-
         </section>
 
         <section className="tasks-completion">
