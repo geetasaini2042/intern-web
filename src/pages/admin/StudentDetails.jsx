@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -8,8 +9,6 @@ import {
 
 import {
   ArrowLeft,
-  UserRound,
-  Mail,
   Phone,
   GraduationCap,
   Building2,
@@ -27,15 +26,12 @@ import {
   RefreshCw,
   Edit,
   KeyRound,
-  MoreHorizontal,
   ChevronRight,
   Loader2,
   Download,
-  ExternalLink,
   ShieldCheck,
   Activity,
   FileText,
-  Plus,
   X
 } from "lucide-react";
 
@@ -85,58 +81,134 @@ function getArray(response, keys = []) {
   return [];
 }
 
+function getItemId(item) {
+  return String(
+    item?.id ||
+    item?._id ||
+    item?.program_id ||
+    item?.batch_id ||
+    ""
+  );
+}
+
+function getItemName(item) {
+  return (
+    item?.name ||
+    item?.title ||
+    item?.program_name ||
+    item?.batch_name ||
+    "Untitled"
+  );
+}
+
+function getBatchProgramId(batch) {
+  return String(
+    batch?.program_id ||
+    batch?.program?._id ||
+    batch?.program?.id ||
+    ""
+  );
+}
+
 function normalizeStudent(data) {
   return {
     ...data,
+
     id: data.id || data._id || data.student_id || "",
+
     full_name:
       data.full_name ||
       data.name ||
       data.student_name ||
       "Student",
+
     email: data.email || "",
+
     phone: data.phone || data.mobile || "",
+
     enrollment_id:
       data.enrollment_id ||
       data.roll_number ||
       data.registration_number ||
       "",
-    college: data.college || data.college_name || data.university || "",
-    department: data.department || data.course || data.branch || "",
+
+    college:
+      data.college ||
+      data.college_name ||
+      data.university ||
+      "",
+
+    department:
+      data.department ||
+      data.course ||
+      data.branch ||
+      "",
+
+    program_id: String(
+      data.program_id ||
+      data.program?._id ||
+      data.program?.id ||
+      ""
+    ),
+
+    batch_id: String(
+      data.batch_id ||
+      data.batch?._id ||
+      data.batch?.id ||
+      ""
+    ),
+
     internship_program:
       data.internship_program ||
       data.program_name ||
-      data.program ||
+      data.program?.name ||
+      (typeof data.program === "string" ? data.program : "") ||
       "",
-    batch: data.batch_name || data.batch || "",
+
+    batch:
+      data.batch_name ||
+      data.batch?.name ||
+      (typeof data.batch === "string" ? data.batch : "") ||
+      "",
+
     status: String(data.status || "active").toLowerCase(),
+
     profile_photo:
       data.profile_photo ||
       data.profile_image ||
       data.photo ||
       data.avatar ||
       "",
-    created_at: data.created_at || data.joined_at || "",
+
+    created_at:
+      data.created_at ||
+      data.joined_at ||
+      "",
+
     internship_start:
       data.internship_start ||
       data.start_date ||
       "",
+
     internship_end:
       data.internship_end ||
       data.end_date ||
       "",
+
     required_hours: Number(
       data.required_hours ||
       data.total_required_hours ||
       data.internship_hours ||
       120
     ),
+
     completed_hours: Number(
       data.completed_hours ||
       data.total_hours ||
       data.hours_completed ||
       0
     ),
+
     payment_status: data.payment_status || "unknown"
   };
 }
@@ -145,7 +217,11 @@ function formatDate(value) {
   if (!value) return "—";
 
   try {
-    return new Date(value).toLocaleDateString("en-IN", {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric"
@@ -166,7 +242,7 @@ function getStatus(status) {
 function Status({ value }) {
   const text = String(value || "Pending")
     .replaceAll("_", " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 
   return (
     <span
@@ -183,11 +259,11 @@ function Avatar({ student, size = "lg" }) {
       ? "h-16 w-16 text-xl"
       : "h-10 w-10 text-sm";
 
-  const initials = student.full_name
+  const initials = String(student.full_name || "Student")
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
-    .map((x) => x[0])
+    .map((word) => word[0])
     .join("")
     .toUpperCase();
 
@@ -216,7 +292,10 @@ function InfoItem({ icon: Icon, label, value }) {
       </div>
 
       <div className="min-w-0">
-        <p className="text-[11px] font-medium text-slate-400">{label}</p>
+        <p className="text-[11px] font-medium text-slate-400">
+          {label}
+        </p>
+
         <p className="mt-1 break-words text-sm font-medium text-slate-700">
           {value || "—"}
         </p>
@@ -225,15 +304,29 @@ function InfoItem({ icon: Icon, label, value }) {
   );
 }
 
-function MetricCard({ label, value, icon: Icon, color, description }) {
+function MetricCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  description
+}) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
+          <p className="text-xs font-medium text-slate-500">
+            {label}
+          </p>
+
+          <p className="mt-2 text-2xl font-bold text-slate-900">
+            {value}
+          </p>
+
           {description && (
-            <p className="mt-1 text-xs text-slate-400">{description}</p>
+            <p className="mt-1 text-xs text-slate-400">
+              {description}
+            </p>
           )}
         </div>
 
@@ -245,64 +338,189 @@ function MetricCard({ label, value, icon: Icon, color, description }) {
   );
 }
 
-function EditStudentModal({ student, onClose, onSave, saving }) {
+function EditStudentModal({
+  student,
+  onClose,
+  onSave,
+  saving
+}) {
   const [form, setForm] = useState({});
+  const [programs, setPrograms] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (student) {
-      setForm({
-        full_name: student.full_name || "",
-        email: student.email || "",
-        phone: student.phone || "",
-        enrollment_id: student.enrollment_id || "",
-        college: student.college || "",
-        department: student.department || "",
-        internship_program: student.internship_program || "",
-        batch: student.batch || "",
-        status: student.status || "active"
-      });
-    }
+    if (!student) return;
+
+    setForm({
+      full_name: student.full_name || "",
+      email: student.email || "",
+      phone: student.phone || "",
+      enrollment_id: student.enrollment_id || "",
+      college: student.college || "",
+      department: student.department || "",
+      program_id: student.program_id || "",
+      batch_id: student.batch_id || "",
+      status: student.status || "active"
+    });
+
+    setError("");
+  }, [student]);
+
+  useEffect(() => {
+    if (!student) return;
+
+    let cancelled = false;
+
+    const loadOptions = async () => {
+      setLoadingOptions(true);
+      setError("");
+
+      try {
+        const [programResponse, batchResponse] = await Promise.all([
+          apiGet("/admin/programs"),
+          apiGet("/admin/batches")
+        ]);
+
+        if (cancelled) return;
+
+        const programList = getArray(programResponse, [
+          "programs",
+          "items",
+          "results"
+        ]);
+
+        const batchList = getArray(batchResponse, [
+          "batches",
+          "items",
+          "results"
+        ]);
+
+        setPrograms(programList);
+        setBatches(batchList);
+      } catch (err) {
+        console.error("Program and Batch loading failed:", err);
+
+        if (!cancelled) {
+          setError(
+            "Unable to load Programs and Batches. Please try again."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingOptions(false);
+        }
+      }
+    };
+
+    loadOptions();
+
+    return () => {
+      cancelled = true;
+    };
   }, [student]);
 
   if (!student) return null;
 
   const change = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    setForm((previous) => ({
+      ...previous,
+      [key]: value
+    }));
   };
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const selectedBatches = batches.filter(
+    (batch) =>
+      getBatchProgramId(batch) === String(form.program_id || "")
+  );
+
+  const fieldClass =
+    "w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:bg-slate-50";
+
+  const fields = [
+    ["full_name", "Full Name", "text"],
+    ["email", "Email", "email"],
+    ["phone", "Phone", "tel"],
+    ["enrollment_id", "Enrollment ID", "text"],
+    ["college", "College", "text"],
+    ["department", "Department / Course", "text"]
+  ];
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+
+    if (!form.program_id) {
+      setError("Please select a Program.");
+      return;
+    }
+
+    if (!form.batch_id) {
+      setError("Please select a Batch.");
+      return;
+    }
+
+    const selectedProgram = programs.find(
+      (item) => getItemId(item) === String(form.program_id)
+    );
+
+    const selectedBatch = batches.find(
+      (item) => getItemId(item) === String(form.batch_id)
+    );
+
+    if (!selectedProgram || !selectedBatch) {
+      setError("Invalid Program or Batch selection.");
+      return;
+    }
+
+    if (
+      getBatchProgramId(selectedBatch) !== String(form.program_id)
+    ) {
+      setError("Selected Batch does not belong to this Program.");
+      return;
+    }
 
     try {
-      setError("");
-      await onSave(form);
+      await onSave({
+        ...form,
+        program_id: form.program_id,
+        batch_id: form.batch_id,
+        internship_program: getItemName(selectedProgram),
+        batch_name: getItemName(selectedBatch)
+      });
     } catch (err) {
       setError(err.message || "Unable to update student.");
     }
   };
 
-  const fieldClass =
-    "w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10";
-
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+
         <div className="flex items-center justify-between border-b p-5">
           <div>
-            <h2 className="font-bold text-slate-900">Edit Student</h2>
+            <h2 className="font-bold text-slate-900">
+              Edit Student
+            </h2>
+
             <p className="mt-1 text-xs text-slate-500">
               Update student information
             </p>
           </div>
 
-          <button onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 hover:bg-slate-100"
+          >
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={submit}>
           <div className="max-h-[65vh] overflow-y-auto p-5">
+
             {error && (
               <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
                 {error}
@@ -310,24 +528,19 @@ function EditStudentModal({ student, onClose, onSave, saving }) {
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                ["full_name", "Full Name"],
-                ["email", "Email"],
-                ["phone", "Phone"],
-                ["enrollment_id", "Enrollment ID"],
-                ["college", "College"],
-                ["department", "Department / Course"],
-                ["internship_program", "Program"],
-                ["batch", "Batch"]
-              ].map(([key, label]) => (
+
+              {fields.map(([key, label, type]) => (
                 <div key={key}>
                   <label className="mb-1.5 block text-xs font-semibold text-slate-600">
                     {label}
                   </label>
 
                   <input
+                    type={type}
                     value={form[key] || ""}
-                    onChange={(e) => change(key, e.target.value)}
+                    onChange={(event) =>
+                      change(key, event.target.value)
+                    }
                     className={fieldClass}
                   />
                 </div>
@@ -335,12 +548,90 @@ function EditStudentModal({ student, onClose, onSave, saving }) {
 
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  Internship Program
+                </label>
+
+                <select
+                  value={form.program_id || ""}
+                  disabled={loadingOptions}
+                  onChange={(event) => {
+                    const programId = event.target.value;
+
+                    setForm((previous) => ({
+                      ...previous,
+                      program_id: programId,
+                      batch_id: ""
+                    }));
+                  }}
+                  className={fieldClass}
+                >
+                  <option value="">
+                    {loadingOptions
+                      ? "Loading Programs..."
+                      : "Select Program"}
+                  </option>
+
+                  {programs.map((program) => (
+                    <option
+                      key={getItemId(program)}
+                      value={getItemId(program)}
+                    >
+                      {getItemName(program)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
+                  Batch
+                </label>
+
+                <select
+                  value={form.batch_id || ""}
+                  disabled={!form.program_id || loadingOptions}
+                  onChange={(event) =>
+                    change("batch_id", event.target.value)
+                  }
+                  className={fieldClass}
+                >
+                  <option value="">
+                    {!form.program_id
+                      ? "Select Program First"
+                      : loadingOptions
+                      ? "Loading Batches..."
+                      : "Select Batch"}
+                  </option>
+
+                  {selectedBatches.map((batch) => (
+                    <option
+                      key={getItemId(batch)}
+                      value={getItemId(batch)}
+                    >
+                      {getItemName(batch)}
+                    </option>
+                  ))}
+                </select>
+
+                {form.program_id &&
+                  !loadingOptions &&
+                  selectedBatches.length === 0 && (
+                    <p className="mt-1.5 text-xs text-amber-600">
+                      No batches available for this Program.
+                    </p>
+                  )}
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-600">
                   Account Status
                 </label>
 
                 <select
-                  value={form.status}
-                  onChange={(e) => change("status", e.target.value)}
+                  value={form.status || "active"}
+                  onChange={(event) =>
+                    change("status", event.target.value)
+                  }
                   className={fieldClass}
                 >
                   <option value="active">Active</option>
@@ -349,6 +640,7 @@ function EditStudentModal({ student, onClose, onSave, saving }) {
                   <option value="completed">Completed</option>
                 </select>
               </div>
+
             </div>
           </div>
 
@@ -363,10 +655,12 @@ function EditStudentModal({ student, onClose, onSave, saving }) {
 
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || loadingOptions}
               className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {saving && <Loader2 size={15} className="animate-spin" />}
+              {saving && (
+                <Loader2 size={15} className="animate-spin" />
+              )}
               Save Changes
             </button>
           </div>
@@ -376,14 +670,24 @@ function EditStudentModal({ student, onClose, onSave, saving }) {
   );
 }
 
-function PasswordModal({ student, onClose, onSave, saving }) {
+function PasswordModal({
+  student,
+  onClose,
+  onSave,
+  saving
+}) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    setPassword("");
+    setError("");
+  }, [student]);
+
   if (!student) return null;
 
-  const submit = async (e) => {
-    e.preventDefault();
+  const submit = async (event) => {
+    event.preventDefault();
 
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
@@ -401,15 +705,23 @@ function PasswordModal({ student, onClose, onSave, saving }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h2 className="font-bold text-slate-900">Reset Password</h2>
+            <h2 className="font-bold text-slate-900">
+              Reset Password
+            </h2>
+
             <p className="mt-1 text-xs text-slate-500">
               {student.full_name}
             </p>
           </div>
 
-          <button onClick={onClose} className="rounded-lg p-2 hover:bg-slate-100">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 hover:bg-slate-100"
+          >
             <X size={18} />
           </button>
         </div>
@@ -423,13 +735,15 @@ function PasswordModal({ student, onClose, onSave, saving }) {
             type="password"
             autoComplete="new-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
             placeholder="Minimum 8 characters"
             className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
           />
 
           {error && (
-            <p className="mt-2 text-xs text-red-600">{error}</p>
+            <p className="mt-2 text-xs text-red-600">
+              {error}
+            </p>
           )}
 
           <div className="mt-5 flex justify-end gap-2">
@@ -462,14 +776,23 @@ function EmptySection({ title, description }) {
         <FileText size={24} className="text-slate-400" />
       </div>
 
-      <h3 className="mt-4 text-sm font-semibold text-slate-800">{title}</h3>
+      <h3 className="mt-4 text-sm font-semibold text-slate-800">
+        {title}
+      </h3>
 
-      <p className="mt-1 max-w-sm text-xs text-slate-500">{description}</p>
+      <p className="mt-1 max-w-sm text-xs text-slate-500">
+        {description}
+      </p>
     </div>
   );
 }
 
-function DataTable({ columns, rows, emptyTitle, emptyDescription }) {
+function DataTable({
+  columns,
+  rows,
+  emptyTitle,
+  emptyDescription
+}) {
   if (!rows.length) {
     return (
       <EmptySection
@@ -502,7 +825,10 @@ function DataTable({ columns, rows, emptyTitle, emptyDescription }) {
               className="border-b border-slate-50 hover:bg-slate-50/70"
             >
               {columns.map((column) => (
-                <td key={column.label} className="px-4 py-4 text-sm text-slate-700">
+                <td
+                  key={column.label}
+                  className="px-4 py-4 text-sm text-slate-700"
+                >
                   {column.render
                     ? column.render(row)
                     : row[column.key] || "—"}
@@ -518,18 +844,22 @@ function DataTable({ columns, rows, emptyTitle, emptyDescription }) {
 
 function Overview({ student, sectionData }) {
   const attendance = sectionData.attendance || {};
-  const tasks = sectionData.tasks || [];
-  const projects = sectionData.projects || [];
+  const tasks = getArray(sectionData.tasks, ["tasks", "items"]);
+  const projects = getArray(sectionData.projects, ["projects", "items"]);
   const learn = sectionData.learn || {};
-  const logbook = sectionData.logbook || [];
-  const certificates = sectionData.certificates || [];
+  const logbook = getArray(sectionData.logbook, ["logbook", "entries"]);
+  const certificates = getArray(sectionData.certificates, ["certificates", "items"]);
 
   const required = student.required_hours || 120;
   const completed = student.completed_hours || 0;
-  const progress = Math.min(100, Math.round((completed / required) * 100));
+
+  const progress = required > 0
+    ? Math.min(100, Math.round((completed / required) * 100))
+    : 0;
 
   return (
     <div className="space-y-5">
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Internship Hours"
@@ -541,7 +871,11 @@ function Overview({ student, sectionData }) {
 
         <MetricCard
           label="Attendance"
-          value={attendance.percentage != null ? `${attendance.percentage}%` : "—"}
+          value={
+            attendance.percentage != null
+              ? `${attendance.percentage}%`
+              : "—"
+          }
           description="Attendance percentage"
           icon={CalendarDays}
           color="bg-emerald-50 text-emerald-600"
@@ -565,12 +899,14 @@ function Overview({ student, sectionData }) {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-3">
+
         <div className="rounded-2xl border border-slate-200 bg-white p-5 xl:col-span-2">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-slate-900">
                 Internship Progress
               </h3>
+
               <p className="mt-1 text-xs text-slate-500">
                 Overall completion
               </p>
@@ -590,7 +926,9 @@ function Overview({ student, sectionData }) {
 
           <div className="mt-3 flex justify-between text-xs text-slate-500">
             <span>{completed} hours completed</span>
-            <span>{Math.max(0, required - completed)} hours remaining</span>
+            <span>
+              {Math.max(0, required - completed)} hours remaining
+            </span>
           </div>
 
           <div className="mt-6 grid grid-cols-2 gap-4 border-t border-slate-100 pt-5">
@@ -609,7 +947,9 @@ function Overview({ student, sectionData }) {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 className="font-semibold text-slate-900">Account Overview</h3>
+          <h3 className="font-semibold text-slate-900">
+            Account Overview
+          </h3>
 
           <div className="mt-4 space-y-4">
             <InfoItem
@@ -646,8 +986,11 @@ function Overview({ student, sectionData }) {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
+
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 className="mb-4 font-semibold text-slate-900">Learning Progress</h3>
+          <h3 className="mb-4 font-semibold text-slate-900">
+            Learning Progress
+          </h3>
 
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
@@ -658,6 +1001,7 @@ function Overview({ student, sectionData }) {
               <p className="text-2xl font-bold text-slate-900">
                 {learn.progress ?? learn.completion_percentage ?? 0}%
               </p>
+
               <p className="text-xs text-slate-500">
                 Learn program progress
               </p>
@@ -678,7 +1022,9 @@ function Overview({ student, sectionData }) {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h3 className="mb-4 font-semibold text-slate-900">Activity Summary</h3>
+          <h3 className="mb-4 font-semibold text-slate-900">
+            Activity Summary
+          </h3>
 
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -686,8 +1032,13 @@ function Overview({ student, sectionData }) {
               ["Certificates", certificates.length]
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl bg-slate-50 p-4">
-                <p className="text-2xl font-bold text-slate-900">{value}</p>
-                <p className="mt-1 text-xs text-slate-500">{label}</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  {value}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  {label}
+                </p>
               </div>
             ))}
           </div>
@@ -696,8 +1047,14 @@ function Overview({ student, sectionData }) {
     </div>
   );
 }
+
 function AttendanceSection({ data }) {
-  const rows = getArray(data, ["attendance", "records", "items", "history"]);
+  const rows = getArray(data, [
+    "attendance",
+    "records",
+    "items",
+    "history"
+  ]);
 
   return (
     <div className="space-y-4">
@@ -731,19 +1088,23 @@ function AttendanceSection({ data }) {
         columns={[
           {
             label: "Date",
-            render: (row) => formatDate(row.date || row.check_in_date)
+            render: (row) =>
+              formatDate(row.date || row.check_in_date)
           },
           {
             label: "Check In",
-            render: (row) => row.check_in || row.check_in_time || "—"
+            render: (row) =>
+              row.check_in || row.check_in_time || "—"
           },
           {
             label: "Check Out",
-            render: (row) => row.check_out || row.check_out_time || "—"
+            render: (row) =>
+              row.check_out || row.check_out_time || "—"
           },
           {
             label: "Hours",
-            render: (row) => row.hours ?? row.duration ?? "—"
+            render: (row) =>
+              row.hours ?? row.duration ?? "—"
           },
           {
             label: "Status",
@@ -756,7 +1117,11 @@ function AttendanceSection({ data }) {
 }
 
 function TasksSection({ data }) {
-  const rows = getArray(data, ["tasks", "items", "assignments"]);
+  const rows = getArray(data, [
+    "tasks",
+    "items",
+    "assignments"
+  ]);
 
   return (
     <DataTable
@@ -771,6 +1136,7 @@ function TasksSection({ data }) {
               <p className="font-semibold text-slate-800">
                 {row.title || row.task_name || "Untitled Task"}
               </p>
+
               <p className="mt-1 text-xs text-slate-400">
                 {row.description || ""}
               </p>
@@ -779,11 +1145,13 @@ function TasksSection({ data }) {
         },
         {
           label: "Deadline",
-          render: (row) => formatDate(row.deadline || row.due_date)
+          render: (row) =>
+            formatDate(row.deadline || row.due_date)
         },
         {
           label: "Submitted",
-          render: (row) => formatDate(row.submitted_at)
+          render: (row) =>
+            formatDate(row.submitted_at)
         },
         {
           label: "Status",
@@ -795,7 +1163,12 @@ function TasksSection({ data }) {
 }
 
 function LearnSection({ data }) {
-  const rows = getArray(data, ["learn", "programs", "courses", "items"]);
+  const rows = getArray(data, [
+    "learn",
+    "programs",
+    "courses",
+    "items"
+  ]);
 
   return (
     <DataTable
@@ -808,8 +1181,12 @@ function LearnSection({ data }) {
           render: (row) => (
             <div>
               <p className="font-semibold text-slate-800">
-                {row.title || row.program_name || row.name || "Learning Program"}
+                {row.title ||
+                  row.program_name ||
+                  row.name ||
+                  "Learning Program"}
               </p>
+
               <p className="mt-1 text-xs text-slate-400">
                 {row.modules_count ?? row.total_modules ?? "—"} modules
               </p>
@@ -830,10 +1207,13 @@ function LearnSection({ data }) {
                 <div className="mb-1 flex justify-between text-xs">
                   <span>{progress}%</span>
                 </div>
+
                 <div className="h-1.5 rounded-full bg-slate-100">
                   <div
                     className="h-full rounded-full bg-violet-500"
-                    style={{ width: `${Math.min(100, progress)}%` }}
+                    style={{
+                      width: `${Math.min(100, progress)}%`
+                    }}
                   />
                 </div>
               </div>
@@ -855,7 +1235,11 @@ function LearnSection({ data }) {
 }
 
 function ProjectsSection({ data }) {
-  const rows = getArray(data, ["projects", "items", "assignments"]);
+  const rows = getArray(data, [
+    "projects",
+    "items",
+    "assignments"
+  ]);
 
   return (
     <DataTable
@@ -870,6 +1254,7 @@ function ProjectsSection({ data }) {
               <p className="font-semibold text-slate-800">
                 {row.title || row.project_name || "Untitled Project"}
               </p>
+
               <p className="mt-1 text-xs text-slate-400">
                 {row.technology || row.tech_stack || ""}
               </p>
@@ -878,11 +1263,13 @@ function ProjectsSection({ data }) {
         },
         {
           label: "Deadline",
-          render: (row) => formatDate(row.deadline || row.due_date)
+          render: (row) =>
+            formatDate(row.deadline || row.due_date)
         },
         {
           label: "Submitted",
-          render: (row) => formatDate(row.submitted_at)
+          render: (row) =>
+            formatDate(row.submitted_at)
         },
         {
           label: "Status",
@@ -894,7 +1281,11 @@ function ProjectsSection({ data }) {
 }
 
 function LogbookSection({ data }) {
-  const rows = getArray(data, ["logbook", "entries", "items"]);
+  const rows = getArray(data, [
+    "logbook",
+    "entries",
+    "items"
+  ]);
 
   return (
     <DataTable
@@ -913,6 +1304,7 @@ function LogbookSection({ data }) {
               <p className="font-semibold text-slate-800">
                 {row.title || row.activity || "Daily Activity"}
               </p>
+
               <p className="mt-1 max-w-xs truncate text-xs text-slate-400">
                 {row.description || row.work_done || ""}
               </p>
@@ -921,7 +1313,8 @@ function LogbookSection({ data }) {
         },
         {
           label: "Hours",
-          render: (row) => row.hours ?? row.duration ?? "—"
+          render: (row) =>
+            row.hours ?? row.duration ?? "—"
         },
         {
           label: "Status",
@@ -933,7 +1326,10 @@ function LogbookSection({ data }) {
 }
 
 function CertificatesSection({ data }) {
-  const rows = getArray(data, ["certificates", "items"]);
+  const rows = getArray(data, [
+    "certificates",
+    "items"
+  ]);
 
   return (
     <DataTable
@@ -946,21 +1342,29 @@ function CertificatesSection({ data }) {
           render: (row) => (
             <div>
               <p className="font-semibold text-slate-800">
-                {row.certificate_name || row.program_name || row.title || "Internship Certificate"}
+                {row.certificate_name ||
+                  row.program_name ||
+                  row.title ||
+                  "Internship Certificate"}
               </p>
+
               <p className="mt-1 text-xs text-slate-400">
-                {row.certificate_number || row.certificate_id || ""}
+                {row.certificate_number ||
+                  row.certificate_id ||
+                  ""}
               </p>
             </div>
           )
         },
         {
           label: "Issued",
-          render: (row) => formatDate(row.issued_at || row.issue_date)
+          render: (row) =>
+            formatDate(row.issued_at || row.issue_date)
         },
         {
           label: "Status",
-          render: (row) => <Status value={row.status || "issued"} />
+          render: (row) =>
+            <Status value={row.status || "issued"} />
         },
         {
           label: "Action",
@@ -1010,13 +1414,19 @@ export default function StudentDetails() {
     setLoadError("");
 
     try {
-      const response = await apiGet(`/admin/students/${studentId}`);
+      const response = await apiGet(
+        `/admin/students/${studentId}`
+      );
+
       const result = getObject(response);
 
       setStudent(normalizeStudent(result));
     } catch (error) {
       console.error("Student details load failed:", error);
-      setLoadError(error.message || "Unable to load student details.");
+
+      setLoadError(
+        error.message || "Unable to load student details."
+      );
     } finally {
       setLoading(false);
     }
@@ -1028,15 +1438,15 @@ export default function StudentDetails() {
 
   const showToast = (message) => {
     setToast(message);
-    setTimeout(() => setToast(""), 3500);
+
+    setTimeout(() => {
+      setToast("");
+    }, 3500);
   };
 
-  const loadSection = async (tab) => {
+  const loadSection = async (tab, force = false) => {
     if (tab === "overview") return;
-    if (sectionData[tab]) return;
-
-    setSectionLoading(true);
-    setSectionError("");
+    if (!force && sectionData[tab]) return;
 
     const endpoints = {
       attendance: `/admin/students/${studentId}/attendance`,
@@ -1047,16 +1457,24 @@ export default function StudentDetails() {
       certificates: `/admin/students/${studentId}/certificates`
     };
 
+    if (!endpoints[tab]) return;
+
+    setSectionLoading(true);
+    setSectionError("");
+
     try {
       const response = await apiGet(endpoints[tab]);
 
-      setSectionData((prev) => ({
-        ...prev,
-        [tab]: response?.data || response
+      setSectionData((previous) => ({
+        ...previous,
+        [tab]: response?.data ?? response
       }));
     } catch (error) {
       console.error(`${tab} loading failed:`, error);
-      setSectionError(error.message || `Unable to load ${tab}.`);
+
+      setSectionError(
+        error.message || `Unable to load ${tab}.`
+      );
     } finally {
       setSectionLoading(false);
     }
@@ -1070,9 +1488,29 @@ export default function StudentDetails() {
     setEditSaving(true);
 
     try {
-      await apiPut(`/admin/students/${studentId}`, form);
+      const payload = {
+        full_name: form.full_name,
+        email: form.email,
+        phone: form.phone,
+        enrollment_id: form.enrollment_id,
+        college: form.college,
+        department: form.department,
+        program_id: form.program_id,
+        batch_id: form.batch_id,
+        internship_program: form.internship_program,
+        batch_name: form.batch_name,
+        status: form.status
+      };
+
+      await apiPut(
+        `/admin/students/${studentId}`,
+        payload
+      );
+
       setEditOpen(false);
+
       await loadStudent();
+
       showToast("Student profile updated.");
     } catch (error) {
       console.error("Student update failed:", error);
@@ -1086,11 +1524,15 @@ export default function StudentDetails() {
     setPasswordSaving(true);
 
     try {
-      await apiPost(`/admin/students/${studentId}/reset-password`, {
-        new_password: password
-      });
+      await apiPost(
+        `/admin/students/${studentId}/reset-password`,
+        {
+          new_password: password
+        }
+      );
 
       setPasswordOpen(false);
+
       showToast("Student password reset successfully.");
     } catch (error) {
       console.error("Password reset failed:", error);
@@ -1103,13 +1545,8 @@ export default function StudentDetails() {
   const handleRefresh = async () => {
     await loadStudent();
 
-    setSectionData((prev) => ({
-      ...prev,
-      [activeTab]: undefined
-    }));
-
     if (activeTab !== "overview") {
-      await loadSection(activeTab);
+      await loadSection(activeTab, true);
     }
   };
 
@@ -1134,8 +1571,14 @@ export default function StudentDetails() {
   if (loading) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
-        <Loader2 size={28} className="animate-spin text-blue-600" />
-        <p className="text-sm text-slate-500">Loading student profile...</p>
+        <Loader2
+          size={28}
+          className="animate-spin text-blue-600"
+        />
+
+        <p className="text-sm text-slate-500">
+          Loading student profile...
+        </p>
       </div>
     );
   }
@@ -1143,7 +1586,10 @@ export default function StudentDetails() {
   if (loadError || !student) {
     return (
       <div className="rounded-2xl border border-red-100 bg-white p-8 text-center">
-        <AlertCircle className="mx-auto text-red-500" size={30} />
+        <AlertCircle
+          className="mx-auto text-red-500"
+          size={30}
+        />
 
         <h2 className="mt-3 font-semibold text-slate-900">
           Unable to load student
@@ -1174,15 +1620,17 @@ export default function StudentDetails() {
 
   return (
     <div className="space-y-5">
-      {/* Toast */}
+
       {toast && (
         <div className="fixed right-4 top-20 z-[120] flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl">
-          <CheckCircle2 size={17} className="text-emerald-400" />
+          <CheckCircle2
+            size={17}
+            className="text-emerald-400"
+          />
           {toast}
         </div>
       )}
 
-      {/* Back */}
       <button
         onClick={() => navigate("/admin/students")}
         className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900"
@@ -1191,12 +1639,12 @@ export default function StudentDetails() {
         Back to Students
       </button>
 
-      {/* Profile header */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="h-24 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 sm:h-32" />
 
         <div className="px-4 pb-5 sm:px-6">
           <div className="-mt-10 flex flex-col gap-4 sm:-mt-12 sm:flex-row sm:items-end sm:justify-between">
+
             <div className="flex items-end gap-3 sm:gap-4">
               <div className="rounded-2xl border-4 border-white shadow-sm">
                 <Avatar student={student} size="lg" />
@@ -1242,7 +1690,6 @@ export default function StudentDetails() {
             </div>
           </div>
 
-          {/* Quick info */}
           <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2 xl:grid-cols-4">
             <InfoItem
               icon={Phone}
@@ -1271,7 +1718,6 @@ export default function StudentDetails() {
         </div>
       </div>
 
-      {/* Quick assignment actions */}
       <div className="grid gap-3 sm:grid-cols-3">
         {quickActions.map((action) => {
           const Icon = action.icon;
@@ -1294,14 +1740,17 @@ export default function StudentDetails() {
                 </span>
               </div>
 
-              <ChevronRight size={17} className="text-slate-400" />
+              <ChevronRight
+                size={17}
+                className="text-slate-400"
+              />
             </button>
           );
         })}
       </div>
 
-      {/* Tabs */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+
         <div className="border-b border-slate-200">
           <div className="flex gap-1 overflow-x-auto px-2 pt-2">
             {TABS.map((tab) => {
@@ -1327,6 +1776,7 @@ export default function StudentDetails() {
         </div>
 
         <div className="p-4 sm:p-5">
+
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-slate-900">
               {TABS.find((tab) => tab.id === activeTab)?.label}
@@ -1343,8 +1793,14 @@ export default function StudentDetails() {
 
           {sectionLoading ? (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-3">
-              <Loader2 size={25} className="animate-spin text-blue-600" />
-              <p className="text-xs text-slate-500">Loading data...</p>
+              <Loader2
+                size={25}
+                className="animate-spin text-blue-600"
+              />
+
+              <p className="text-xs text-slate-500">
+                Loading data...
+              </p>
             </div>
           ) : sectionError ? (
             <div className="rounded-xl border border-red-100 bg-red-50 p-4">
@@ -1353,16 +1809,12 @@ export default function StudentDetails() {
                 Unable to load data
               </div>
 
-              <p className="mt-1 text-xs text-red-600">{sectionError}</p>
+              <p className="mt-1 text-xs text-red-600">
+                {sectionError}
+              </p>
 
               <button
-                onClick={() => {
-                  setSectionData((prev) => ({
-                    ...prev,
-                    [activeTab]: undefined
-                  }));
-                  loadSection(activeTab);
-                }}
+                onClick={() => loadSection(activeTab, true)}
                 className="mt-3 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white"
               >
                 Retry
@@ -1378,34 +1830,45 @@ export default function StudentDetails() {
               )}
 
               {activeTab === "attendance" && (
-                <AttendanceSection data={sectionData.attendance || {}} />
+                <AttendanceSection
+                  data={sectionData.attendance || {}}
+                />
               )}
 
               {activeTab === "tasks" && (
-                <TasksSection data={sectionData.tasks || []} />
+                <TasksSection
+                  data={sectionData.tasks || []}
+                />
               )}
 
               {activeTab === "learn" && (
-                <LearnSection data={sectionData.learn || []} />
+                <LearnSection
+                  data={sectionData.learn || []}
+                />
               )}
 
               {activeTab === "projects" && (
-                <ProjectsSection data={sectionData.projects || []} />
+                <ProjectsSection
+                  data={sectionData.projects || []}
+                />
               )}
 
               {activeTab === "logbook" && (
-                <LogbookSection data={sectionData.logbook || []} />
+                <LogbookSection
+                  data={sectionData.logbook || []}
+                />
               )}
 
               {activeTab === "certificates" && (
-                <CertificatesSection data={sectionData.certificates || []} />
+                <CertificatesSection
+                  data={sectionData.certificates || []}
+                />
               )}
             </>
           )}
         </div>
       </div>
 
-      {/* Modals */}
       <EditStudentModal
         student={editOpen ? student : null}
         onClose={() => setEditOpen(false)}
@@ -1419,6 +1882,7 @@ export default function StudentDetails() {
         onSave={handlePasswordReset}
         saving={passwordSaving}
       />
+
     </div>
   );
 }
