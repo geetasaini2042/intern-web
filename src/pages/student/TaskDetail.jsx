@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import Editor from "@monaco-editor/react";
 import { API_BASE, apiGet, apiPost } from "../../lib/api";
 
 const getArray = (value) => (Array.isArray(value) ? value : []);
 
 const formatDate = (date) => {
   if (!date) return "No deadline";
-
   const d = new Date(date);
-
   if (isNaN(d.getTime())) return date;
 
   return d.toLocaleDateString("en-IN", {
@@ -20,9 +19,7 @@ const formatDate = (date) => {
 
 const formatDateTime = (date) => {
   if (!date) return "Not specified";
-
   const d = new Date(date);
-
   if (isNaN(d.getTime())) return date;
 
   return d.toLocaleString("en-IN", {
@@ -49,7 +46,7 @@ const statusStyle = (status) => {
   if (["revision required", "rejected"].includes(s))
     return { color: "#b45309", bg: "#fef3c7" };
 
-  if (["late"].includes(s))
+  if (s === "late")
     return { color: "#dc2626", bg: "#fee2e2" };
 
   return { color: "#64748b", bg: "#f1f5f9" };
@@ -71,6 +68,40 @@ const normalizeFileType = (type) => {
   if (["github_url", "repository"].includes(t)) return "github";
 
   return t;
+};
+
+const normalizeEditorLanguage = (language) => {
+  const lang = String(language || "javascript").toLowerCase().trim();
+
+  const aliases = {
+    "c++": "cpp",
+    cpp: "cpp",
+    "c#": "csharp",
+    "python 3": "python",
+    py: "python",
+    js: "javascript",
+    jsx: "javascript",
+    ts: "typescript",
+    tsx: "typescript",
+    html5: "html",
+    css3: "css",
+    shell: "shell",
+    bash: "shell",
+    sh: "shell",
+    json: "json",
+    "plain text": "plaintext",
+    text: "plaintext",
+    golang: "go",
+    sql: "sql",
+    kotlin: "kotlin",
+    dart: "dart",
+    php: "php",
+    ruby: "ruby",
+    rust: "rust",
+    swift: "swift"
+  };
+
+  return aliases[lang] || lang;
 };
 
 const getToken = () =>
@@ -107,14 +138,11 @@ const getSubmissionHistory = (submission, task) => {
     [];
 
   if (Array.isArray(history) && history.length) return history;
-
   return submission ? [submission] : [];
 };
 
 const getUploadUrl = (response) => {
-  if (typeof response === "string") {
-    return response;
-  }
+  if (typeof response === "string") return response;
 
   return (
     response?.url ||
@@ -137,638 +165,602 @@ const EMPTY_FIELDS = {};
 
 const STYLES = `
   .td-page {
-    min-height: 100vh;
-    background: #f5f7fb;
-    color: #172033;
-    padding: 26px;
-    font-family: Inter, system-ui, sans-serif;
+    min-height:100vh;
+    background:#f5f7fb;
+    color:#172033;
+    padding:26px;
+    font-family:Inter,system-ui,sans-serif;
   }
 
-  .td-container {
-    max-width: 1150px;
-    margin: auto;
-  }
+  .td-container { max-width:1180px; margin:auto; }
 
   .td-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    border: none;
-    background: transparent;
-    color: #64748b;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0;
-    margin-bottom: 22px;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    border:none;
+    background:transparent;
+    color:#64748b;
+    font-size:14px;
+    font-weight:650;
+    cursor:pointer;
+    padding:0;
+    margin-bottom:22px;
   }
 
-  .td-back:hover {
-    color: #2563eb;
-  }
+  .td-back:hover { color:#2563eb; }
 
   .td-header {
-    background: white;
-    border: 1px solid #e7ebf2;
-    border-radius: 18px;
-    padding: 26px;
-    margin-bottom: 20px;
+    background:white;
+    border:1px solid #e7ebf2;
+    border-radius:18px;
+    padding:26px;
+    margin-bottom:20px;
+    box-shadow:0 4px 20px rgba(15,23,42,.025);
   }
 
   .td-header-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:20px;
   }
 
   .td-title {
-    font-size: 28px;
-    font-weight: 750;
-    letter-spacing: -0.6px;
-    margin: 0 0 10px;
-    color: #111827;
-    line-height: 1.3;
+    font-size:28px;
+    font-weight:800;
+    letter-spacing:-.6px;
+    margin:0 0 10px;
+    color:#111827;
+    line-height:1.3;
+    overflow-wrap:anywhere;
   }
 
   .td-subtitle {
-    color: #64748b;
-    font-size: 14px;
-    line-height: 1.6;
-    margin: 0;
+    color:#64748b;
+    font-size:14px;
+    line-height:1.6;
+    margin:0;
   }
 
   .td-badge {
-    display: inline-flex;
-    padding: 7px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 700;
-    white-space: nowrap;
+    display:inline-flex;
+    padding:7px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:750;
+    white-space:nowrap;
   }
 
   .td-meta {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-top: 24px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+    margin-top:24px;
   }
 
   .td-meta-item {
-    background: #f8fafc;
-    border: 1px solid #edf0f5;
-    padding: 14px;
-    border-radius: 12px;
+    background:#f8fafc;
+    border:1px solid #edf0f5;
+    padding:14px;
+    border-radius:12px;
+    transition:.2s;
   }
 
-  .td-meta-label {
-    font-size: 12px;
-    color: #64748b;
-    margin-bottom: 6px;
-  }
+  .td-meta-item:hover { background:#f1f5f9; }
+
+  .td-meta-label { font-size:12px; color:#64748b; margin-bottom:6px; }
 
   .td-meta-value {
-    font-size: 14px;
-    font-weight: 700;
-    color: #1e293b;
+    font-size:14px;
+    font-weight:700;
+    color:#1e293b;
+    overflow-wrap:anywhere;
   }
 
   .td-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
-    align-items: start;
-    gap: 20px;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 330px;
+    align-items:start;
+    gap:20px;
   }
 
-  .td-main, .td-sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
+  .td-main,.td-sidebar {
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+    min-width:0;
   }
 
   .td-card {
-    background: white;
-    border: 1px solid #e7ebf2;
-    border-radius: 16px;
-    padding: 22px;
+    background:white;
+    border:1px solid #e7ebf2;
+    border-radius:16px;
+    padding:22px;
+    box-shadow:0 3px 15px rgba(15,23,42,.025);
+    transition:border-color .2s;
   }
 
+  .td-card:hover { border-color:#dbe3ef; }
+
   .td-card-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 16px;
-    font-weight: 750;
-    margin: 0 0 18px;
-    color: #172033;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:16px;
+    font-weight:750;
+    margin:0 0 18px;
+    color:#172033;
   }
 
   .td-card-title-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
-    background: #eff6ff;
-    color: #2563eb;
-    font-size: 16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:35px;
+    height:35px;
+    border-radius:10px;
+    background:#eff6ff;
+    color:#2563eb;
+    font-size:16px;
+    flex-shrink:0;
   }
 
   .td-description {
-    color: #475569;
-    font-size: 14px;
-    line-height: 1.85;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    color:#475569;
+    font-size:14px;
+    line-height:1.85;
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
   }
 
-  .td-description p {
-    margin: 0 0 12px;
-  }
-
-  .td-description p:last-child {
-    margin-bottom: 0;
-  }
+  .td-description p { margin:0 0 12px; }
+  .td-description p:last-child { margin-bottom:0; }
 
   .td-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
   }
 
   .td-list li {
-    display: flex;
-    gap: 11px;
-    align-items: flex-start;
-    color: #475569;
-    font-size: 14px;
-    line-height: 1.65;
+    display:flex;
+    gap:11px;
+    align-items:flex-start;
+    color:#475569;
+    font-size:14px;
+    line-height:1.65;
   }
 
   .td-check {
-    width: 18px;
-    height: 18px;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 5px;
-    flex-shrink: 0;
-    margin-top: 2px;
+    width:18px;
+    height:18px;
+    border:1.5px solid #cbd5e1;
+    border-radius:5px;
+    flex-shrink:0;
+    margin-top:2px;
   }
 
   .td-checklist-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 11px 0;
-    border-bottom: 1px solid #edf0f5;
-    color: #475569;
-    font-size: 14px;
-    line-height: 1.65;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:11px 0;
+    border-bottom:1px solid #edf0f5;
+    color:#475569;
+    font-size:14px;
+    line-height:1.65;
   }
 
-  .td-checklist-item input {
-    accent-color: #2563eb;
-    margin-top: 4px;
-  }
+  .td-checklist-item:last-child { border-bottom:none; }
+  .td-checklist-item input { accent-color:#2563eb; margin-top:4px; }
 
   .td-resource {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    border: 1px solid #edf0f5;
-    border-radius: 11px;
-    margin-bottom: 10px;
-    text-decoration: none;
-    color: inherit;
-    transition: .15s;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px;
+    border:1px solid #edf0f5;
+    border-radius:11px;
+    margin-bottom:10px;
+    text-decoration:none;
+    color:inherit;
+    transition:.15s;
+    background:white;
   }
 
-  .td-resource:hover {
-    border-color: #bfdbfe;
-    background: #f8fbff;
-  }
+  .td-resource:hover { border-color:#bfdbfe; background:#f8fbff; }
 
   .td-resource-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    background: #eff6ff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #2563eb;
-    font-size: 16px;
-    flex-shrink: 0;
+    width:38px;
+    height:38px;
+    border-radius:10px;
+    background:#eff6ff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#2563eb;
+    font-size:16px;
+    flex-shrink:0;
   }
 
   .td-resource-name {
-    font-size: 13px;
-    font-weight: 650;
-    color: #1e293b;
-    overflow-wrap: anywhere;
+    font-size:13px;
+    font-weight:650;
+    color:#1e293b;
+    overflow-wrap:anywhere;
   }
 
-  .td-resource-type {
-    font-size: 11px;
-    color: #94a3b8;
-    margin-top: 4px;
-  }
+  .td-resource-type { font-size:11px; color:#94a3b8; margin-top:4px; }
 
-  .td-form-group {
-    margin-bottom: 18px;
-  }
+  .td-form-group { margin-bottom:20px; }
 
   .td-label {
-    display: block;
-    font-size: 13px;
-    font-weight: 650;
-    margin-bottom: 8px;
-    color: #334155;
+    display:block;
+    font-size:13px;
+    font-weight:700;
+    margin-bottom:9px;
+    color:#334155;
   }
 
-  .td-required {
-    color: #dc2626;
-    margin-left: 4px;
+  .td-required { color:#dc2626; margin-left:4px; }
+
+  .td-input,.td-textarea {
+    width:100%;
+    box-sizing:border-box;
+    border:1px solid #dce2ea;
+    border-radius:10px;
+    padding:12px 14px;
+    background:white;
+    font:inherit;
+    font-size:14px;
+    color:#172033;
+    outline:none;
+    transition:.15s;
   }
 
-  .td-input, .td-textarea {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid #dce2ea;
-    border-radius: 10px;
-    padding: 12px 14px;
-    background: #fff;
-    font: inherit;
-    font-size: 14px;
-    color: #172033;
-    outline: none;
-    transition: .15s;
-  }
-
-  .td-input:focus, .td-textarea:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+  .td-input:focus,.td-textarea:focus {
+    border-color:#3b82f6;
+    box-shadow:0 0 0 3px rgba(59,130,246,.1);
   }
 
   .td-textarea {
-    min-height: 170px;
-    resize: vertical;
-    line-height: 1.7;
-  }
-
-  .td-code-editor {
-    width: 100%;
-    box-sizing: border-box;
-    min-height: 260px;
-    padding: 16px;
-    border-radius: 12px;
-    border: 1px solid #253044;
-    background: #111827;
-    color: #d1fae5;
-    font-family: monospace;
-    font-size: 13px;
-    line-height: 1.65;
-    resize: vertical;
-    outline: none;
+    min-height:170px;
+    resize:vertical;
+    line-height:1.7;
   }
 
   .td-code-meta {
-    background: #f1f5f9;
-    border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 15px;
-    font-size: 13px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    background:#f8fafc;
+    border:1px solid #e5eaf2;
+    border-radius:10px;
+    padding:12px 14px;
+    margin-bottom:16px;
+    font-size:13px;
+    color:#475569;
   }
 
   .td-starter-code {
-    overflow: auto;
-    background: #111827;
-    color: #d1d5db;
-    border-radius: 10px;
-    padding: 15px;
-    font-size: 12px;
-    line-height: 1.6;
+    overflow:auto;
+    background:#0d1117;
+    color:#d1d5db;
+    border:1px solid #263248;
+    border-radius:12px;
+    padding:15px;
+    font-size:13px;
+    line-height:1.7;
+    white-space:pre;
   }
 
   .td-character-count {
-    text-align: right;
-    color: #94a3b8;
-    font-size: 12px;
-    margin-top: 6px;
+    text-align:right;
+    color:#94a3b8;
+    font-size:12px;
+    margin-top:6px;
   }
 
-  .td-tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 18px;
-  }
+  .td-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
 
   .td-tab {
-    border: 1px solid #e2e8f0;
-    border-radius: 9px;
-    padding: 9px 13px;
-    background: white;
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 650;
-    cursor: pointer;
+    border:1px solid #e2e8f0;
+    border-radius:9px;
+    padding:9px 13px;
+    background:white;
+    color:#64748b;
+    font-size:12px;
+    font-weight:650;
+    cursor:pointer;
+    transition:.15s;
   }
 
+  .td-tab:hover { border-color:#93c5fd; }
+
   .td-tab.active {
-    border-color: #2563eb;
-    color: #2563eb;
-    background: #eff6ff;
+    border-color:#2563eb;
+    color:#2563eb;
+    background:#eff6ff;
   }
 
   .td-file {
-    border: 1.5px dashed #cbd5e1;
-    border-radius: 12px;
-    padding: 26px;
-    text-align: center;
-    background: #f8fafc;
+    border:1.5px dashed #cbd5e1;
+    border-radius:12px;
+    padding:26px;
+    text-align:center;
+    background:#f8fafc;
   }
 
-  .td-file-icon {
-    font-size: 26px;
-    color: #2563eb;
-    margin-bottom: 8px;
-  }
+  .td-file-icon { font-size:26px; color:#2563eb; margin-bottom:8px; }
 
-  .td-file input {
-    max-width: 100%;
-    margin-top: 10px;
-  }
+  .td-file input { max-width:100%; margin-top:10px; }
 
-  .td-selected-files {
-    margin-top: 10px;
-  }
+  .td-selected-files { margin-top:10px; }
 
   .td-selected-file {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid #e5eaf2;
-    border-radius: 10px;
-    margin-bottom: 8px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:12px;
+    border:1px solid #e5eaf2;
+    border-radius:10px;
+    margin-bottom:8px;
   }
 
-  .td-selected-file-info {
-    min-width: 0;
-  }
+  .td-selected-file-info { min-width:0; }
 
   .td-selected-file strong {
-    display: block;
-    font-size: 13px;
-    overflow-wrap: anywhere;
+    display:block;
+    font-size:13px;
+    overflow-wrap:anywhere;
   }
 
-  .td-selected-file small {
-    display: block;
-    margin-top: 4px;
-    color: #64748b;
-  }
+  .td-selected-file small { display:block; margin-top:4px; color:#64748b; }
 
   .td-selected-file button {
-    color: #dc2626;
-    border: none;
-    background: transparent;
-    cursor: pointer;
+    color:#dc2626;
+    border:none;
+    background:transparent;
+    cursor:pointer;
+    font-weight:600;
   }
 
   .td-button {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 18px;
-    background: #2563eb;
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    width: 100%;
-    transition: .15s;
+    display:inline-flex;
+    justify-content:center;
+    align-items:center;
+    gap:8px;
+    padding:12px 18px;
+    background:#2563eb;
+    color:white;
+    border:none;
+    border-radius:10px;
+    font-size:14px;
+    font-weight:700;
+    cursor:pointer;
+    width:100%;
+    min-height:46px;
+    transition:.15s;
+    box-shadow:0 3px 8px rgba(37,99,235,.12);
   }
 
-  .td-button:hover {
-    background: #1d4ed8;
-  }
-
-  .td-button:disabled {
-    opacity: .55;
-    cursor: not-allowed;
-  }
+  .td-button:hover { background:#1d4ed8; }
+  .td-button:disabled { opacity:.55; cursor:not-allowed; }
 
   .td-alert {
-    padding: 13px 15px;
-    border-radius: 10px;
-    font-size: 13px;
-    line-height: 1.6;
-    margin-bottom: 15px;
+    padding:13px 15px;
+    border-radius:10px;
+    font-size:13px;
+    line-height:1.6;
+    margin-bottom:15px;
   }
 
-  .td-alert.error {
-    background: #fef2f2;
-    color: #b91c1c;
-    border: 1px solid #fecaca;
-  }
-
-  .td-alert.success {
-    background: #f0fdf4;
-    color: #15803d;
-    border: 1px solid #bbf7d0;
-  }
-
-  .td-alert.warning {
-    background: #fffbeb;
-    color: #92400e;
-    border: 1px solid #fde68a;
-  }
+  .td-alert.error { background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; }
+  .td-alert.success { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+  .td-alert.warning { background:#fffbeb; color:#92400e; border:1px solid #fde68a; }
 
   .td-kv {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 11px 0;
-    border-bottom: 1px solid #edf0f5;
-    font-size: 13px;
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:11px 0;
+    border-bottom:1px solid #edf0f5;
+    font-size:13px;
   }
 
-  .td-kv:last-child {
-    border-bottom: none;
-  }
-
-  .td-kv-label {
-    color: #64748b;
-  }
-
-  .td-kv-value {
-    color: #1e293b;
-    font-weight: 650;
-    text-align: right;
-    overflow-wrap: anywhere;
-  }
+  .td-kv:last-child { border-bottom:none; }
+  .td-kv-label { color:#64748b; }
+  .td-kv-value { color:#1e293b; font-weight:650; text-align:right; overflow-wrap:anywhere; }
 
   .td-feedback {
-    background: #f8fafc;
-    border: 1px solid #edf0f5;
-    padding: 15px;
-    border-radius: 11px;
-    color: #475569;
-    font-size: 13px;
-    line-height: 1.7;
-    white-space: pre-wrap;
+    background:#f8fafc;
+    border:1px solid #edf0f5;
+    border-left:3px solid #bfdbfe;
+    padding:15px;
+    border-radius:11px;
+    color:#475569;
+    font-size:13px;
+    line-height:1.7;
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
   }
 
   .td-feedback-mark {
-    font-size: 24px;
-    font-weight: 800;
-    color: #2563eb;
-    margin-bottom: 8px;
+    font-size:24px;
+    font-weight:800;
+    color:#2563eb;
+    margin-bottom:8px;
   }
 
   .td-history-item {
-    border-left: 2px solid #dbeafe;
-    padding-left: 14px;
-    margin-bottom: 18px;
+    border-left:2px solid #dbeafe;
+    padding-left:14px;
+    margin-bottom:18px;
   }
 
-  .td-history-item:last-child {
-    margin-bottom: 0;
-  }
-
-  .td-history-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #334155;
-  }
-
-  .td-history-date {
-    font-size: 11px;
-    color: #94a3b8;
-    margin-top: 4px;
-  }
-
-  .td-history-body {
-    font-size: 13px;
-    color: #64748b;
-    margin-top: 8px;
-    line-height: 1.6;
-    overflow-wrap: anywhere;
-  }
+  .td-history-item:last-child { margin-bottom:0; }
+  .td-history-title { font-size:13px; font-weight:700; color:#334155; }
+  .td-history-date { font-size:11px; color:#94a3b8; margin-top:4px; }
+  .td-history-body { font-size:13px; color:#64748b; margin-top:8px; line-height:1.6; overflow-wrap:anywhere; }
 
   .td-loading {
-    min-height: 70vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #64748b;
-    gap: 14px;
+    min-height:70vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    color:#64748b;
+    gap:14px;
   }
 
   .td-spinner {
-    width: 30px;
-    height: 30px;
-    border: 3px solid #dbeafe;
-    border-top-color: #2563eb;
-    border-radius: 50%;
-    animation: tdspin .8s linear infinite;
+    width:30px;
+    height:30px;
+    border:3px solid #dbeafe;
+    border-top-color:#2563eb;
+    border-radius:50%;
+    animation:tdspin .8s linear infinite;
   }
 
-  @keyframes tdspin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes tdspin { to { transform:rotate(360deg); } }
 
   .td-error-card {
-    max-width: 500px;
-    margin: 10vh auto;
-    padding: 30px;
-    text-align: center;
-    background: white;
-    border-radius: 16px;
-    border: 1px solid #e7ebf2;
+    max-width:500px;
+    margin:10vh auto;
+    padding:30px;
+    text-align:center;
+    background:white;
+    border-radius:16px;
+    border:1px solid #e7ebf2;
   }
 
   .td-error-card button {
-    border: 0;
-    border-radius: 9px;
-    padding: 11px 16px;
-    background: #2563eb;
-    color: white;
-    cursor: pointer;
-    font-weight: 650;
+    border:0;
+    border-radius:9px;
+    padding:11px 16px;
+    background:#2563eb;
+    color:white;
+    cursor:pointer;
+    font-weight:650;
   }
 
-  .td-muted {
-    color: #94a3b8;
-    font-size: 13px;
+  .td-muted { color:#94a3b8; font-size:13px; }
+
+  /* Monaco Editor */
+
+  .td-editor-shell {
+    overflow:hidden;
+    border:1px solid #263248;
+    border-radius:14px;
+    background:#0d1117;
+    margin-top:8px;
   }
 
-  @media (max-width: 900px) {
-    .td-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .td-sidebar {
-      order: -1;
-    }
-
-    .td-meta {
-      grid-template-columns: repeat(2, 1fr);
-    }
+  .td-editor-toolbar {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+    padding:11px 14px;
+    background:#151c29;
+    border-bottom:1px solid #263248;
+    color:#dbe4f0;
   }
 
-  @media (max-width: 600px) {
-    .td-page {
-      padding: 14px;
-    }
+  .td-editor-toolbar-left {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-width:0;
+  }
 
-    .td-header {
-      padding: 19px;
-    }
+  .td-editor-language {
+    font-size:12px;
+    font-weight:750;
+    text-transform:uppercase;
+    letter-spacing:.4px;
+  }
 
-    .td-title {
-      font-size: 22px;
-    }
+  .td-editor-hint { font-size:11px; color:#94a3b8; }
 
-    .td-header-top {
-      flex-direction: column;
-    }
+  .td-editor-toolbar button {
+    border:1px solid #334155;
+    background:#202b3c;
+    color:#dbeafe;
+    padding:6px 10px;
+    border-radius:7px;
+    font-size:12px;
+    cursor:pointer;
+  }
 
-    .td-meta {
-      gap: 9px;
-    }
+  .td-editor-toolbar button:hover { background:#334155; }
 
-    .td-meta-item {
-      padding: 12px;
-    }
+  .td-editor-container { min-height:300px; }
 
-    .td-card {
-      padding: 17px;
-    }
+  .td-editor-footer {
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    padding:9px 14px;
+    background:#151c29;
+    border-top:1px solid #263248;
+    color:#94a3b8;
+    font-size:11px;
+  }
 
-    .td-card-title {
-      font-size: 15px;
-    }
+  .td-editor-fullscreen {
+    position:fixed !important;
+    inset:0 !important;
+    z-index:99999 !important;
+    display:flex !important;
+    flex-direction:column !important;
+    background:#0d1117 !important;
+    border-radius:0 !important;
+    margin:0 !important;
+    width:100vw !important;
+    height:100dvh !important;
+  }
 
-    .td-tabs {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-    }
+  .td-editor-fullscreen .td-editor-container {
+    flex:1;
+    min-height:0;
+  }
 
-    .td-tab {
-      text-align: center;
-    }
+  .td-editor-fullscreen .td-editor-toolbar {
+    flex-shrink:0;
+    padding:14px 18px;
+  }
+
+  .td-editor-fullscreen .td-editor-footer { flex-shrink:0; }
+
+  @media (max-width:900px) {
+    .td-grid { grid-template-columns:1fr; }
+    .td-sidebar { order:-1; }
+    .td-meta { grid-template-columns:repeat(2,1fr); }
+  }
+
+  @media (max-width:600px) {
+    .td-page { padding:14px; }
+    .td-header { padding:19px; }
+    .td-title { font-size:22px; }
+    .td-header-top { flex-direction:column; }
+    .td-meta { gap:9px; }
+    .td-meta-item { padding:12px; }
+    .td-card { padding:17px; }
+    .td-card-title { font-size:15px; }
+    .td-tabs { display:grid; grid-template-columns:repeat(2,1fr); }
+    .td-tab { text-align:center; }
+    .td-editor-container { min-height:260px; }
+    .td-editor-toolbar { padding:10px; }
+    .td-editor-footer { padding:8px 10px; }
   }
 `;
 
@@ -800,6 +792,8 @@ export default function TaskDetail() {
   const [mixedFiles, setMixedFiles] = useState(EMPTY_FIELDS);
 
   const [checkedRequirements, setCheckedRequirements] = useState({});
+
+  const [editorFullscreen, setEditorFullscreen] = useState(false);
 
   const loadTask = async () => {
     if (!currentTaskId) {
@@ -842,11 +836,10 @@ export default function TaskDetail() {
           cfg.allowed_submission_types ||
           cfg.types;
 
-        if (Array.isArray(configured) && configured.length) {
-          resolvedType = normalizeFileType(configured[0]);
-        } else {
-          resolvedType = "text";
-        }
+        resolvedType =
+          Array.isArray(configured) && configured.length
+            ? normalizeFileType(configured[0])
+            : "text";
       }
 
       setSubmissionType(resolvedType);
@@ -862,9 +855,28 @@ export default function TaskDetail() {
     loadTask();
   }, [currentTaskId]);
 
+  useEffect(() => {
+    if (!editorFullscreen) return;
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setEditorFullscreen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [editorFullscreen]);
+
   const config = useMemo(() => getConfig(task), [task]);
   const resources = useMemo(() => getResources(task), [task]);
   const requirements = useMemo(() => getRequirements(task), [task]);
+
   const history = useMemo(
     () => getSubmissionHistory(submission, task),
     [submission, task]
@@ -882,9 +894,11 @@ export default function TaskDetail() {
   const isApproved = ["approved", "completed", "accepted"].includes(
     normalizedStatus
   );
+
   const isRevision = ["revision required", "revision"].includes(
     normalizedStatus
   );
+
   const isSubmitted = ["submitted", "under review"].includes(normalizedStatus);
   const isLocked = isApproved;
 
@@ -897,16 +911,12 @@ export default function TaskDetail() {
         config.allowed_submission_types ||
         config.types;
 
-      if (Array.isArray(configured) && configured.length) {
-        return configured.map(normalizeFileType);
-      }
-
-      return ["text", "url", "github", "file"];
+      return Array.isArray(configured) && configured.length
+        ? configured.map(normalizeFileType)
+        : ["text", "url", "github", "file"];
     }
 
-    if (baseType === "mixed") {
-      return ["mixed"];
-    }
+    if (baseType === "mixed") return ["mixed"];
 
     return [baseType];
   }, [baseType, config]);
@@ -974,6 +984,76 @@ export default function TaskDetail() {
     }));
   };
 
+  const renderProfessionalEditor = ({
+    value,
+    onChange,
+    language = "javascript",
+    height = "350px"
+  }) => (
+    <div
+      className={`td-editor-shell ${
+        editorFullscreen ? "td-editor-fullscreen" : ""
+      }`}
+    >
+      <div className="td-editor-toolbar">
+        <div className="td-editor-toolbar-left">
+          <span className="td-editor-language">
+            {normalizeEditorLanguage(language)}
+          </span>
+          <span className="td-editor-hint">Monaco Editor</span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setEditorFullscreen((previous) => !previous)}
+        >
+          {editorFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+        </button>
+      </div>
+
+      <div className="td-editor-container">
+        <Editor
+          height={editorFullscreen ? "100%" : height}
+          language={normalizeEditorLanguage(language)}
+          value={value || ""}
+          onChange={(nextValue) => onChange(nextValue || "")}
+          theme="vs-dark"
+          options={{
+            automaticLayout: true,
+            minimap: { enabled: false },
+            fontSize: 14,
+            lineHeight: 22,
+            fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+            fontLigatures: true,
+            lineNumbers: "on",
+            scrollBeyondLastLine: false,
+            wordWrap: "on",
+            tabSize: 2,
+            insertSpaces: true,
+            autoIndent: "full",
+            formatOnPaste: true,
+            formatOnType: true,
+            padding: { top: 14, bottom: 14 },
+            scrollbar: {
+              verticalScrollbarSize: 8,
+              horizontalScrollbarSize: 8
+            },
+            suggestOnTriggerCharacters: true,
+            quickSuggestions: true,
+            folding: true,
+            bracketPairColorization: { enabled: true },
+            readOnly: false
+          }}
+        />
+      </div>
+
+      <div className="td-editor-footer">
+        <span>Indent: 2 spaces</span>
+        <span>Syntax highlighting enabled</span>
+      </div>
+    </div>
+  );
+
   const validateFile = (file, fileConfig = {}) => {
     const allowedFormats =
       fileConfig.allowed_formats || config.allowed_formats || [];
@@ -1015,7 +1095,6 @@ export default function TaskDetail() {
 
   const handleFileChange = (event, fieldName = null, fileConfig = {}) => {
     const files = Array.from(event.target.files || []);
-
     if (!files.length) return;
 
     const validationError = files
@@ -1113,8 +1192,7 @@ export default function TaskDetail() {
         `Uploading ${label ? label + ": " : ""}${file.name} (${i + 1}/${files.length})...`
       );
 
-      const uploaded = await uploadFile(file);
-      result.push(uploaded);
+      result.push(await uploadFile(file));
     }
 
     return result;
@@ -1145,10 +1223,8 @@ export default function TaskDetail() {
       }
     }
 
-    if (submissionType === "code") {
-      if (!code.trim()) {
-        return "Please enter your code before submitting.";
-      }
+    if (submissionType === "code" && !code.trim()) {
+      return "Please enter your code before submitting.";
     }
 
     if (submissionType === "url") {
@@ -1194,18 +1270,19 @@ export default function TaskDetail() {
         }
       }
 
-      if (
-        config.require_one_field &&
-        !fieldsConfig.some((field) => {
+      if (config.require_one_field) {
+        const hasValue = fieldsConfig.some((field) => {
           const name = field.name || field.id;
           const fieldType = normalizeFileType(field.type || field.field_type);
 
           return ["file", "pdf", "image"].includes(fieldType)
             ? (mixedFiles[name] || []).length > 0
             : String(mixedFields[name] || "").trim();
-        })
-      ) {
-        return "Please complete at least one submission field.";
+        });
+
+        if (!hasValue) {
+          return "Please complete at least one submission field.";
+        }
       }
     }
 
@@ -1239,7 +1316,7 @@ export default function TaskDetail() {
 
     try {
       let uploadedFiles = [];
-      let filesByField = {};
+      const filesByField = {};
 
       if (selectedFiles.length) {
         uploadedFiles = await uploadFiles(selectedFiles);
@@ -1262,12 +1339,7 @@ export default function TaskDetail() {
       const fileUrl = uploadedFiles[0]?.url || "";
 
       const data = {
-        answer:
-          submissionType === "text"
-            ? answer
-            : submissionType === "code"
-            ? code
-            : "",
+        answer: submissionType === "text" ? answer : submissionType === "code" ? code : "",
         text: submissionType === "text" ? answer : "",
         code: submissionType === "code" ? code : "",
         url: submissionType === "url" ? submissionUrl : "",
@@ -1380,6 +1452,7 @@ export default function TaskDetail() {
     keyProp = undefined
   ) => {
     const files = fieldName ? mixedFiles[fieldName] || [] : selectedFiles;
+
     const multiple = Boolean(
       fileConfig.multiple_files ?? config.multiple_files
     );
@@ -1393,7 +1466,6 @@ export default function TaskDetail() {
 
         <div className="td-file">
           <div className="td-file-icon">↑</div>
-
           <strong>Select file{multiple ? "s" : ""}</strong>
 
           <p className="td-muted">
@@ -1429,18 +1501,15 @@ export default function TaskDetail() {
   const renderMixedField = (field, index) => {
     const name = field.name || field.id || `field_${index}`;
     const label = field.label || name;
+
     const fieldType = normalizeFileType(
       field.type || field.field_type || "text"
     );
+
     const required = Boolean(field.required);
 
     if (["file", "pdf", "image"].includes(fieldType)) {
-      return renderFileInput(
-        label,
-        name,
-        { ...field, type: fieldType },
-        name
-      );
+      return renderFileInput(label, name, { ...field, type: fieldType }, name);
     }
 
     if (fieldType === "code") {
@@ -1451,13 +1520,14 @@ export default function TaskDetail() {
             {required && <span className="td-required">*</span>}
           </label>
 
-          <textarea
-            className="td-code-editor"
-            value={mixedFields[name] || ""}
-            onChange={(event) => updateMixedField(name, event.target.value)}
-            placeholder={field.placeholder || ""}
-            spellCheck="false"
-          />
+          {renderProfessionalEditor({
+            value: mixedFields[name] || "",
+            onChange: (value) => updateMixedField(name, value),
+            language: normalizeEditorLanguage(
+              field.language || config.code_language || "javascript"
+            ),
+            height: field.height || "320px"
+          })}
         </div>
       );
     }
@@ -1565,9 +1635,9 @@ export default function TaskDetail() {
           <>
             <div className="td-code-meta">
               <span>
-                Language:{" "}
-                <strong>{config.code_language || "Not specified"}</strong>
+                Language: <strong>{config.code_language || "JavaScript"}</strong>
               </span>
+              <span>Professional code editor</span>
             </div>
 
             {config.starter_code && (
@@ -1580,13 +1650,14 @@ export default function TaskDetail() {
             <div className="td-form-group">
               <label className="td-label">Your Code</label>
 
-              <textarea
-                className="td-code-editor"
-                placeholder="Write or paste your code here..."
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                spellCheck="false"
-              />
+              {renderProfessionalEditor({
+                value: code,
+                onChange: setCode,
+                language: normalizeEditorLanguage(
+                  config.code_language || "javascript"
+                ),
+                height: "420px"
+              })}
             </div>
           </>
         );
@@ -1667,6 +1738,7 @@ export default function TaskDetail() {
     return (
       <div className="td-page">
         <style>{STYLES}</style>
+
         <div className="td-loading">
           <div className="td-spinner" />
           <p>Loading task details...</p>
@@ -1679,6 +1751,7 @@ export default function TaskDetail() {
     return (
       <div className="td-page">
         <style>{STYLES}</style>
+
         <div className="td-error-card">
           <h2>Task not found</h2>
           <p>{error || "The task may have been removed or is unavailable."}</p>
@@ -1719,10 +1792,7 @@ export default function TaskDetail() {
 
             <span
               className="td-badge"
-              style={{
-                color: status.color,
-                background: status.bg
-              }}
+              style={{ color: status.color, background: status.bg }}
             >
               {currentStatus}
             </span>
@@ -2046,18 +2116,13 @@ export default function TaskDetail() {
 
                 <div className="td-kv">
                   <span className="td-kv-label">Status</span>
-
-                  <span
-                    className="td-kv-value"
-                    style={{ color: status.color }}
-                  >
+                  <span className="td-kv-value" style={{ color: status.color }}>
                     {currentStatus}
                   </span>
                 </div>
 
                 <div className="td-kv">
                   <span className="td-kv-label">Submitted At</span>
-
                   <span className="td-kv-value">
                     {formatDateTime(
                       submission.submitted_at || submission.created_at
@@ -2068,7 +2133,6 @@ export default function TaskDetail() {
                 {submission.marks != null && (
                   <div className="td-kv">
                     <span className="td-kv-label">Marks</span>
-
                     <span className="td-kv-value">
                       {submission.marks}
                       {task.max_marks != null ? ` / ${task.max_marks}` : ""}
@@ -2079,9 +2143,8 @@ export default function TaskDetail() {
                 {(submission.answer ||
                   submission.text ||
                   submission.submission_data?.answer) && (
-                  <div style={{ marginTop: 16 }}>
+                  <div style={{ marginTop:16 }}>
                     <div className="td-label">Submitted Answer</div>
-
                     <div className="td-feedback">
                       {submission.answer ||
                         submission.text ||
@@ -2091,12 +2154,36 @@ export default function TaskDetail() {
                 )}
 
                 {(submission.code || submission.submission_data?.code) && (
-                  <div style={{ marginTop: 16 }}>
+                  <div style={{ marginTop:16 }}>
                     <div className="td-label">Submitted Code</div>
 
-                    <pre className="td-starter-code">
-                      {submission.code || submission.submission_data?.code}
-                    </pre>
+                    <div className="td-editor-shell">
+                      <Editor
+                        height="300px"
+                        language={normalizeEditorLanguage(
+                          submission.code_language ||
+                            submission.submission_data?.code_language ||
+                            config.code_language ||
+                            "javascript"
+                        )}
+                        value={
+                          submission.code ||
+                          submission.submission_data?.code ||
+                          ""
+                        }
+                        theme="vs-dark"
+                        options={{
+                          readOnly:true,
+                          automaticLayout:true,
+                          minimap:{ enabled:false },
+                          fontSize:13,
+                          lineNumbers:"on",
+                          wordWrap:"on",
+                          scrollBeyondLastLine:false,
+                          folding:true
+                        }}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -2104,7 +2191,7 @@ export default function TaskDetail() {
                   submission.github_url ||
                   submission.submission_data?.url ||
                   submission.submission_data?.github_url) && (
-                  <div style={{ marginTop: 14 }}>
+                  <div style={{ marginTop:14 }}>
                     <a
                       href={
                         submission.url ||
@@ -2115,10 +2202,10 @@ export default function TaskDetail() {
                       target="_blank"
                       rel="noreferrer"
                       style={{
-                        color: "#2563eb",
-                        fontWeight: 650,
-                        fontSize: 13,
-                        overflowWrap: "anywhere"
+                        color:"#2563eb",
+                        fontWeight:650,
+                        fontSize:13,
+                        overflowWrap:"anywhere"
                       }}
                     >
                       Open Submitted Link ↗
@@ -2126,21 +2213,19 @@ export default function TaskDetail() {
                   </div>
                 )}
 
-                {(
-                  submission.files ||
+                {(submission.files ||
                   submission.submission_data?.files ||
-                  []
-                ).map((file, index) => (
-                  <div key={index} style={{ marginTop: 12 }}>
+                  []).map((file, index) => (
+                  <div key={index} style={{ marginTop:12 }}>
                     <a
                       href={typeof file === "string" ? file : file.url}
                       target="_blank"
                       rel="noreferrer"
                       style={{
-                        color: "#2563eb",
-                        fontWeight: 650,
-                        fontSize: 13,
-                        overflowWrap: "anywhere"
+                        color:"#2563eb",
+                        fontWeight:650,
+                        fontSize:13,
+                        overflowWrap:"anywhere"
                       }}
                     >
                       {typeof file === "string"
@@ -2152,15 +2237,15 @@ export default function TaskDetail() {
                 ))}
 
                 {submission.file_url && (
-                  <div style={{ marginTop: 14 }}>
+                  <div style={{ marginTop:14 }}>
                     <a
                       href={submission.file_url}
                       target="_blank"
                       rel="noreferrer"
                       style={{
-                        color: "#2563eb",
-                        fontWeight: 650,
-                        fontSize: 13
+                        color:"#2563eb",
+                        fontWeight:650,
+                        fontSize:13
                       }}
                     >
                       Open Submitted File ↗
@@ -2200,11 +2285,7 @@ export default function TaskDetail() {
 
               <div className="td-kv">
                 <span className="td-kv-label">Status</span>
-
-                <span
-                  className="td-kv-value"
-                  style={{ color: status.color }}
-                >
+                <span className="td-kv-value" style={{ color:status.color }}>
                   {currentStatus}
                 </span>
               </div>
@@ -2315,12 +2396,12 @@ export default function TaskDetail() {
               <section className="td-card">
                 <h2 className="td-card-title">Your Score</h2>
 
-                <div style={{ textAlign: "center", padding: "12px 0" }}>
+                <div style={{ textAlign:"center", padding:"12px 0" }}>
                   <div
                     style={{
-                      fontSize: 36,
-                      fontWeight: 800,
-                      color: "#2563eb"
+                      fontSize:36,
+                      fontWeight:800,
+                      color:"#2563eb"
                     }}
                   >
                     {submission.marks}
@@ -2376,9 +2457,10 @@ export default function TaskDetail() {
               <button
                 className="td-button"
                 style={{
-                  marginTop: 12,
-                  background: "#eef2f7",
-                  color: "#334155"
+                  marginTop:12,
+                  background:"#eef2f7",
+                  color:"#334155",
+                  boxShadow:"none"
                 }}
                 onClick={() => navigate("/dash/tasks")}
               >
