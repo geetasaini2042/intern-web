@@ -812,7 +812,7 @@ export default function TaskDetail() {
     setError("");
 
     try {
-      const res = await apiGet(`/dash/tasks/${currentTaskId}`);
+      const res = await apiGet(`/intern/tasks/${currentTaskId}`);
 
       const data = getTaskData(res);
       const sub = getSubmissionData(res, data);
@@ -1300,7 +1300,7 @@ export default function TaskDetail() {
       };
 
       const res = await apiPost(
-        `/dash/tasks/${currentTaskId}/submit`,
+        `/intern/tasks/${currentTaskId}/submit`,
         payload
       );
 
@@ -1696,7 +1696,7 @@ export default function TaskDetail() {
       <style>{STYLES}</style>
 
       <div className="td-container">
-        <button className="td-back" onClick={() => navigate("/dash/tasks")}>
+        <button className="td-back" onClick={() => navigate("/intern/tasks")}>
           ← Back to My Tasks
         </button>
 
