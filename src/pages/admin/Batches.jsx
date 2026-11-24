@@ -4,6 +4,7 @@ import { apiGet, apiPost, apiPut, apiDelete } from "../../lib/api";
 const EMPTY_FORM = {
   name: "",
   program_id: "",
+  domain: "",
   description: "",
   start_date: "",
   end_date: "",
@@ -14,6 +15,8 @@ const EMPTY_FORM = {
 const getId = (item) => item.id || item._id;
 
 const getBatchName = (batch) => batch.name || batch.title || "Untitled Batch";
+
+const getDomain = (batch) => batch.domain || batch.internship_domain || "";
 
 export default function Batches() {
   const [batches, setBatches] = useState([]);
@@ -80,6 +83,7 @@ export default function Batches() {
     const matchesSearch =
       getBatchName(batch).toLowerCase().includes(q) ||
       getProgram(batch).toLowerCase().includes(q) ||
+      getDomain(batch).toLowerCase().includes(q) ||
       (batch.description || "").toLowerCase().includes(q);
 
     const batchProgramId =
@@ -128,6 +132,7 @@ export default function Batches() {
     setForm({
       name: batch.name || batch.title || "",
       program_id: programId ? String(programId) : "",
+      domain: getDomain(batch),
       description: batch.description || "",
       start_date: batch.start_date || batch.startDate || "",
       end_date: batch.end_date || batch.endDate || "",
@@ -161,6 +166,11 @@ export default function Batches() {
       return;
     }
 
+    if (!form.domain.trim()) {
+      setError("Internship domain is required.");
+      return;
+    }
+
     if (
       form.start_date &&
       form.end_date &&
@@ -176,6 +186,7 @@ export default function Batches() {
     const payload = {
       name: form.name.trim(),
       program_id: form.program_id,
+      domain: form.domain.trim(),
       description: form.description,
       start_date: form.start_date || null,
       end_date: form.end_date || null,
@@ -266,7 +277,7 @@ export default function Batches() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               type="text"
-              placeholder="Search batch or program..."
+              placeholder="Search batch, program or domain..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
@@ -336,6 +347,7 @@ export default function Batches() {
                       {[
                         "Batch",
                         "Program",
+                        "Domain",
                         "Dates",
                         "Students",
                         "Capacity",
@@ -369,6 +381,10 @@ export default function Batches() {
 
                         <td className="px-5 py-4 text-sm text-slate-600">
                           {getProgram(batch)}
+                        </td>
+
+                        <td className="px-5 py-4 text-sm text-slate-600">
+                          {getDomain(batch) || "—"}
                         </td>
 
                         <td className="px-5 py-4 text-sm text-slate-600">
@@ -432,6 +448,11 @@ export default function Batches() {
                       <p className="mt-1 text-sm text-indigo-600">
                         {getProgram(batch)}
                       </p>
+                      {getDomain(batch) && (
+                        <span className="mt-2 inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                          {getDomain(batch)}
+                        </span>
+                      )}
                     </div>
 
                     <StatusBadge status={batch.status || "active"} />
@@ -554,6 +575,21 @@ export default function Batches() {
                     Create a program first.
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Internship Domain *
+                </label>
+                <input
+                  type="text"
+                  name="domain"
+                  value={form.domain}
+                  onChange={handleChange}
+                  required
+                  placeholder="e.g. Web Development, Python Programming"
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
