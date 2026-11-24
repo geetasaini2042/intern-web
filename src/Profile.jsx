@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   User,
   Mail,
@@ -13,7 +13,12 @@ import {
   Loader2,
   RefreshCw,
   Award,
-  Lock
+  Lock,
+  Image as ImageIcon,
+  Upload,
+  Trash2,
+  Users,
+  X
 } from "lucide-react";
 
 import { API } from "./lib/api";
@@ -56,8 +61,21 @@ const STUDENT_FILLABLE_FIELDS = [
   "bio"
 ];
 
+const LOGO_MAX_MB = 3;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
 function getToken() {
   return localStorage.getItem("intern_token") || localStorage.getItem("access_token");
+}
+
+function authHeaders() {
+  return { Authorization: `Bearer ${getToken()}` };
+}
+
+async function readError(res, fallback) {
+  const data = await res.json().catch(() => ({}));
+  const detail = data.message || data.detail;
+  return typeof detail === "string" && detail ? detail : fallback;
 }
 
 function isEmpty(value) {
@@ -188,6 +206,381 @@ function Section({ title, subtitle, icon: Icon, badge, children }) {
       </div>
       <div className="grid grid-cols-1 gap-5 p-5 sm:grid-cols-2 sm:p-6">
         {children}
+      </div>
+    </section>
+  );
+}
+
+// College / University logo: add, update, remove, ya classmate se copy
+function LogoSection() {
+  const [logo, setLogo] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [pendingFile, setPendingFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const [showClassmates, setShowClassmates] = useState(false);
+  const [classmates, setClassmates] = useState([]);
+  const [classmatesLoading, setClassmatesLoading] = useState(false);
+  const [classmatesNote, setClassmatesNote] = useState("");
+  const [copyingId, setCopyingId] = useState("");
+
+  const fileInputRef = useRef(null);
+
+  const fetchLogo = async () => {
+    try {
+      const res = await fetch(`${API}/intern/tasks/report/logo`, {
+        headers: authHeaders()
+      });
+      if (!res.ok) throw new Error("Unable to load logo.");
+      const data = await res.json();
+      setLogo(data.has_logo ? data.logo : "");
+    } catch (err) {
+      setError(err.message || "Unable to load logo.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogo();
+  }, []);
+
+  // object URL cleanup
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const clearPending = () => {
+    setPendingFile(null);
+    setPreviewUrl("");
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setError("");
+    setMessage("");
+
+    if (file.type !== "image/png" || !file.name.toLowerCase().endsWith(".png")) {
+      setError("Only PNG files are allowed.");
+      return;
+    }
+
+    if (file.size > LOGO_MAX_MB * 1024 * 1024) {
+      setError(`Logo must be smaller than ${LOGO_MAX_MB} MB.`);
+      return;
+    }
+
+    const header = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+    if (!PNG_SIGNATURE.every((byte, i) => header[i] === byte)) {
+      setError("This file is not a valid PNG image.");
+      return;
+    }
+
+    setPendingFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleSaveLogo = async () => {
+    if (!pendingFile) return;
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", pendingFile);
+
+      const res = await fetch(`${API}/intern/tasks/report/logo`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: formData
+      });
+
+      if (!res.ok) throw new Error(await readError(res, "Logo upload failed."));
+
+      clearPending();
+      await fetchLogo();
+      setMessage("Logo saved successfully.");
+    } catch (err) {
+      setError(err.message || "Logo upload failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!window.confirm("Remove your college logo?")) return;
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const res = await fetch(`${API}/intern/tasks/report/logo`, {
+        method: "DELETE",
+        headers: authHeaders()
+      });
+
+      if (!res.ok) throw new Error(await readError(res, "Unable to remove logo."));
+
+      setLogo("");
+      clearPending();
+      setMessage("Logo removed.");
+    } catch (err) {
+      setError(err.message || "Unable to remove logo.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleClassmates = async () => {
+    if (showClassmates) {
+      setShowClassmates(false);
+      return;
+    }
+
+    setShowClassmates(true);
+    setClassmatesLoading(true);
+    setClassmatesNote("");
+    setError("");
+
+    try {
+      const res = await fetch(`${API}/intern/tasks/report/logo/classmates`, {
+        headers: authHeaders()
+      });
+
+      if (!res.ok) throw new Error(await readError(res, "Unable to load classmates."));
+
+      const data = await res.json();
+      setClassmates(data.students || []);
+
+      if (data.reason === "college_missing") {
+        setClassmatesNote("Add your college name first, then you can copy a logo from a classmate.");
+      } else if (!data.students?.length) {
+        setClassmatesNote("No student from your college has added a logo yet.");
+      }
+    } catch (err) {
+      setError(err.message || "Unable to load classmates.");
+      setShowClassmates(false);
+    } finally {
+      setClassmatesLoading(false);
+    }
+  };
+
+  const copyFromClassmate = async (student) => {
+    setCopyingId(student.id);
+    setError("");
+    setMessage("");
+
+    try {
+      const res = await fetch(`${API}/intern/tasks/report/logo/copy`, {
+        method: "POST",
+        headers: {
+          ...authHeaders(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ student_id: student.id })
+      });
+
+      if (!res.ok) throw new Error(await readError(res, "Unable to copy logo."));
+
+      clearPending();
+      await fetchLogo();
+      setShowClassmates(false);
+      setMessage(`Logo copied from ${student.name}.`);
+    } catch (err) {
+      setError(err.message || "Unable to copy logo.");
+    } finally {
+      setCopyingId("");
+    }
+  };
+
+  const shownImage = previewUrl || logo;
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+          <ImageIcon size={19} />
+        </div>
+        <div>
+          <h2 className="font-semibold text-slate-900">College / University Logo</h2>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Shown on your internship report cover and page headers
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-5 sm:p-6">
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {message}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+          <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50">
+            {loading ? (
+              <Loader2 size={22} className="animate-spin text-slate-400" />
+            ) : shownImage ? (
+              <img
+                src={shownImage}
+                alt="College logo"
+                className="h-full w-full object-contain p-2"
+              />
+            ) : (
+              <span className="px-3 text-center text-xs text-slate-400">No logo added</span>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            {pendingFile ? (
+              <>
+                <p className="truncate text-sm font-medium text-slate-800">{pendingFile.name}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Preview only. Click Save Logo to use it in your report.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={handleSaveLogo}
+                    disabled={busy}
+                    className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                    {busy ? "Saving..." : "Save Logo"}
+                  </button>
+                  <button
+                    onClick={clearPending}
+                    disabled={busy}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <X size={15} />
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-slate-600">
+                  Upload a PNG file, up to {LOGO_MAX_MB} MB. A square logo with a transparent
+                  background looks best.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={busy}
+                    className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    <Upload size={15} />
+                    {logo ? "Update Logo" : "Upload PNG Logo"}
+                  </button>
+
+                  <button
+                    onClick={toggleClassmates}
+                    disabled={busy}
+                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <Users size={15} />
+                    Copy from classmate
+                  </button>
+
+                  {logo && (
+                    <button
+                      onClick={handleRemoveLogo}
+                      disabled={busy}
+                      className="flex items-center gap-2 rounded-xl border border-red-100 px-4 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                    >
+                      <Trash2 size={15} />
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {showClassmates && !pendingFile && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">
+                Logos from students of your college
+              </h3>
+              <button
+                onClick={() => setShowClassmates(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-200"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {classmatesLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 size={20} className="animate-spin text-indigo-600" />
+              </div>
+            ) : classmates.length === 0 ? (
+              <p className="py-3 text-sm text-slate-500">
+                {classmatesNote || "No logos available."}
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {classmates.map((student) => (
+                  <div
+                    key={student.id}
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3"
+                  >
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-50">
+                      <img
+                        src={student.logo}
+                        alt={`${student.name}'s college logo`}
+                        className="h-full w-full object-contain p-1"
+                      />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-800">
+                        {student.name}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">{student.college}</p>
+                    </div>
+
+                    <button
+                      onClick={() => copyFromClassmate(student)}
+                      disabled={Boolean(copyingId)}
+                      className="shrink-0 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                    >
+                      {copyingId === student.id ? "Copying..." : "Use this"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -525,6 +918,8 @@ export default function Profile() {
             />
           </Section>
 
+          <LogoSection />
+
           <Section
             title="Internship Information"
             subtitle="Assigned by your admin or mentor"
@@ -631,7 +1026,7 @@ export default function Profile() {
               <div>
                 <h3 className="text-sm font-semibold text-indigo-900">Account Information</h3>
                 <p className="mt-2 text-xs leading-5 text-indigo-700">
-                  Only missing personal or academic details can be filled here. For any correction in internship or locked details, please contact your admin or mentor.
+                  Only missing personal or academic details can be filled here. For any correction in internship or locked details, please contact your admin or mentor. Your college logo can be added or changed any time.
                 </p>
               </div>
             </div>
