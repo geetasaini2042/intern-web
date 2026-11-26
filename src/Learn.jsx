@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,24 +9,14 @@ import {
   Lock,
   GraduationCap,
   ArrowRight,
-  ChevronRight,
   Layers3,
-  Target,
   RefreshCw,
-  FileText,
-  Video,
-  ExternalLink,
-  X,
-  Trophy,
-  Bookmark,
-  CircleDot,
-  Loader2
+  Trophy
 } from "lucide-react";
 
 import { API_BASE } from "./lib/api";
 
 const LEARN_API = `${API_BASE}/intern/learn`;
-const PROGRESS_API = `${API_BASE}/intern/learn/progress`;
 
 function getToken() {
   return (
@@ -63,24 +52,17 @@ function formatDuration(value) {
   return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
 }
 
-function getStatus(module) {
+function getStatus(module, progress, completedLessons, lessonCount) {
   const status = String(module.status || "").toLowerCase();
 
   if (
     status === "completed" ||
     module.completed === true ||
-    module.is_completed === true
+    module.is_completed === true ||
+    progress >= 100 ||
+    (lessonCount > 0 && completedLessons >= lessonCount)
   ) {
     return "completed";
-  }
-
-  if (
-    status === "in_progress" ||
-    status === "in-progress" ||
-    status === "ongoing" ||
-    module.progress > 0
-  ) {
-    return "in_progress";
   }
 
   if (
@@ -89,6 +71,16 @@ function getStatus(module) {
     module.is_locked === true
   ) {
     return "locked";
+  }
+
+  if (
+    status === "in_progress" ||
+    status === "in-progress" ||
+    status === "ongoing" ||
+    progress > 0 ||
+    completedLessons > 0
+  ) {
+    return "in_progress";
   }
 
   return "available";
@@ -101,16 +93,35 @@ function normalizeModule(module, index) {
     ? module.content
     : [];
 
-  const completedLessons = lessons.filter(
+  const lessonCount = Number(
+    module.total_lessons || module.lessons_count || lessons.length || 0
+  );
+
+  const completedFromLessons = lessons.filter(
     lesson =>
       lesson.completed === true ||
       lesson.is_completed === true ||
       lesson.status === "completed"
   ).length;
 
-  const calculatedProgress = lessons.length
-    ? Math.round((completedLessons / lessons.length) * 100)
+  const completedLessons = Number(
+    module.completed_lessons ??
+      module.lessons_completed ??
+      completedFromLessons
+  );
+
+  const calculatedProgress = lessonCount
+    ? Math.round((completedLessons / lessonCount) * 100)
     : 0;
+
+  const rawProgress = Number(
+    module.progress ?? module.progress_percentage ?? calculatedProgress
+  );
+
+  const progress = Math.min(
+    Math.max(Number.isFinite(rawProgress) ? rawProgress : 0, 0),
+    100
+  );
 
   return {
     ...module,
@@ -123,19 +134,15 @@ function normalizeModule(module, index) {
     order: Number(module.order || module.sequence || index + 1),
     category: module.category || module.skill || "Learning",
     lessons,
-    lessonCount:
-      module.total_lessons ||
-      module.lessons_count ||
-      lessons.length,
+    lessonCount,
+    completedLessons,
     duration:
       module.duration ||
       module.estimated_duration ||
       module.duration_minutes,
-    progress: Number(module.progress ?? calculatedProgress),
-    status: getStatus(module),
-    thumbnail: module.thumbnail || module.image || module.cover || "",
-    skills: Array.isArray(module.skills) ? module.skills : [],
-    assignment: module.assignment || null
+    progress,
+    status: getStatus(module, progress, completedLessons, lessonCount),
+    thumbnail: module.thumbnail || module.image || module.cover || ""
   };
 }
 
@@ -171,23 +178,29 @@ function StatusBadge({ status }) {
   const labels = {
     completed: "Completed",
     in_progress: "In Progress",
-    available: "Available",
+    available: "Not Started",
     locked: "Locked"
   };
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
+      className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-medium ${
         styles[status] || styles.available
       }`}
     >
-      {labels[status] || "Available"}
+      {labels[status] || "Not Started"}
     </span>
   );
 }
 
 function ModuleCard({ module, onOpen }) {
   const status = module.status;
+
+  const barColor =
+    status === "completed" ? "bg-emerald-500" : "bg-indigo-500";
+
+  const percentColor =
+    status === "completed" ? "text-emerald-600" : "text-indigo-600";
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-200/50">
@@ -243,28 +256,29 @@ function ModuleCard({ module, onOpen }) {
           </span>
         </div>
 
-        {status === "in_progress" && (
-          <div className="mt-4">
-            <div className="mb-1.5 flex justify-between text-xs">
-              <span className="text-slate-500">Progress</span>
-              <span className="font-medium text-indigo-600">
-                {module.progress}%
-              </span>
-            </div>
-
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-              <div
-                className="h-full rounded-full bg-indigo-500 transition-all"
-                style={{ width: `${Math.min(module.progress, 100)}%` }}
-              />
-            </div>
+        {/* Progress report (shown for every module) */}
+        <div className="mt-4 rounded-xl bg-slate-50 p-3">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="text-slate-500">
+              {module.completedLessons} of {module.lessonCount} lessons done
+            </span>
+            <span className={`font-semibold ${percentColor}`}>
+              {module.progress}%
+            </span>
           </div>
-        )}
+
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+              style={{ width: `${module.progress}%` }}
+            />
+          </div>
+        </div>
 
         <button
           onClick={() => onOpen(module)}
           disabled={status === "locked"}
-          className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+          className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
             status === "locked"
               ? "cursor-not-allowed bg-slate-100 text-slate-400"
               : status === "completed"
@@ -299,64 +313,6 @@ function ModuleCard({ module, onOpen }) {
   );
 }
 
-function LessonItem({ lesson, index, onOpen, busy }) {
-  const completed =
-    lesson.completed === true ||
-    lesson.is_completed === true ||
-    lesson.status === "completed";
-
-  const type = String(
-    lesson.type || lesson.content_type || "reading"
-  ).toLowerCase();
-
-  const Icon =
-    type.includes("video")
-      ? Video
-      : type.includes("quiz")
-      ? Target
-      : type.includes("pdf")
-      ? FileText
-      : BookOpen;
-
-  return (
-    <button
-      onClick={() => onOpen(lesson)}
-      disabled={busy}
-      className="flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:border-indigo-200 hover:bg-indigo-50/50"
-    >
-      <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-          completed
-            ? "bg-emerald-50 text-emerald-600"
-            : "bg-slate-100 text-slate-600"
-        }`}
-      >
-        {completed ? <CheckCircle2 size={19} /> : <Icon size={19} />}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-slate-800">
-          {lesson.title || lesson.name || `Lesson ${index + 1}`}
-        </p>
-
-        <p className="mt-1 text-xs text-slate-500">
-          {lesson.duration
-            ? formatDuration(lesson.duration)
-            : type.replace(/_/g, " ")}
-        </p>
-      </div>
-
-      {busy ? (
-        <Loader2 size={16} className="animate-spin text-indigo-500" />
-      ) : completed ? (
-        <CheckCircle2 size={17} className="text-emerald-500" />
-      ) : (
-        <ChevronRight size={17} className="text-slate-400" />
-      )}
-    </button>
-  );
-}
-
 export default function Learn() {
   const navigate = useNavigate();
 
@@ -366,10 +322,14 @@ export default function Learn() {
   const [student, setStudent] = useState({});
   const [path, setPath] = useState({});
   const [modules, setModules] = useState([]);
-  const [selectedModule, setSelectedModule] = useState(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [busyLesson, setBusyLesson] = useState("");
+
+  // Redirect to the dedicated learning page of the module
+  const openModule = module => {
+    if (!module || module.status === "locked") return;
+    navigate(`/dash/learn/${module.id}`);
+  };
 
   const loadLearn = async (silent = false) => {
     if (silent) {
@@ -417,30 +377,21 @@ export default function Learn() {
 
       setStudent(
         data.student ||
-        data.intern ||
-        data.profile ||
-        result.student ||
-        {}
+          data.intern ||
+          data.profile ||
+          result.student ||
+          {}
       );
 
       setPath(
         data.learning_path ||
-        data.path ||
-        {
-          title: data.title || "Your Learning Path",
-          description: data.description || ""
-        }
+          data.path || {
+            title: data.title || "Your Learning Path",
+            description: data.description || ""
+          }
       );
 
       setModules(normalized);
-
-      if (selectedModule) {
-        const updatedSelected = normalized.find(
-          m => m.id === selectedModule.id
-        );
-
-        setSelectedModule(updatedSelected || null);
-      }
     } catch (err) {
       setError(err.message || "Something went wrong.");
     } finally {
@@ -451,6 +402,7 @@ export default function Learn() {
 
   useEffect(() => {
     loadLearn();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const completedModules = modules.filter(
@@ -466,36 +418,43 @@ export default function Learn() {
     0
   );
 
-  const overallProgress = Number(
-    path.progress ??
-    path.completion_percentage ??
-    path.completion ??
-    (modules.length
-      ? Math.round(
-          modules.reduce(
-            (total, module) =>
-              total +
-              (module.status === "completed"
-                ? 100
-                : module.status === "in_progress"
-                ? module.progress
-                : 0),
-            0
-          ) / modules.length
-        )
-      : 0)
+  const completedLessons = modules.reduce(
+    (total, module) => total + Number(module.completedLessons || 0),
+    0
+  );
+
+  const calculatedOverall = totalLessons
+    ? Math.round((completedLessons / totalLessons) * 100)
+    : modules.length
+    ? Math.round(
+        modules.reduce((total, module) => total + module.progress, 0) /
+          modules.length
+      )
+    : 0;
+
+  const overallProgress = Math.min(
+    Math.max(
+      Number(
+        path.progress ??
+          path.completion_percentage ??
+          path.completion ??
+          calculatedOverall
+      ) || 0,
+      0
+    ),
+    100
   );
 
   const filteredModules = useMemo(() => {
+    const query = search.toLowerCase();
+
     return modules.filter(module => {
       const matchesSearch =
-        module.title.toLowerCase().includes(search.toLowerCase()) ||
-        module.description.toLowerCase().includes(search.toLowerCase()) ||
-        module.category.toLowerCase().includes(search.toLowerCase());
+        module.title.toLowerCase().includes(query) ||
+        module.description.toLowerCase().includes(query) ||
+        module.category.toLowerCase().includes(query);
 
-      const matchesFilter =
-        filter === "all" ||
-        module.status === filter;
+      const matchesFilter = filter === "all" || module.status === filter;
 
       return matchesSearch && matchesFilter;
     });
@@ -504,82 +463,6 @@ export default function Learn() {
   const continueModule =
     modules.find(module => module.status === "in_progress") ||
     modules.find(module => module.status === "available");
-
-  const openLesson = lesson => {
-    const url =
-      lesson.url ||
-      lesson.link ||
-      lesson.video_url ||
-      lesson.content_url ||
-      lesson.pdf_url;
-
-    if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    if (lesson.route) {
-      navigate(lesson.route);
-      return;
-    }
-
-    if (lesson.content) {
-      setSelectedModule(prev => ({
-        ...prev,
-        activeLesson: lesson
-      }));
-      return;
-    }
-
-    alert("Learning content will be available soon.");
-  };
-
-  const markLessonComplete = async lesson => {
-    const lessonId = lesson.id || lesson.lesson_id;
-
-    if (!lessonId || busyLesson) return;
-
-    setBusyLesson(String(lessonId));
-
-    try {
-      const response = await fetch(PROGRESS_API, {
-        method: "POST",
-        headers: {
-          ...getHeaders(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          module_id: selectedModule.id,
-          lesson_id: lessonId,
-          status: "completed"
-        })
-      });
-
-      if (response.status === 401) {
-        navigate("/login", { replace: true });
-        return;
-      }
-
-      if (!response.ok) {
-        const result = await response.json().catch(() => ({}));
-        throw new Error(
-          result.message ||
-          result.detail ||
-          "Unable to save progress."
-        );
-      }
-
-      await loadLearn(true);
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setBusyLesson("");
-    }
-  };
-
-  const closeModule = () => {
-    setSelectedModule(null);
-  };
 
   if (loading) {
     return (
@@ -639,9 +522,7 @@ export default function Learn() {
             )}
 
             <button
-              onClick={() =>
-                continueModule && setSelectedModule(continueModule)
-              }
+              onClick={() => openModule(continueModule)}
               disabled={!continueModule}
               className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-indigo-50 disabled:opacity-50"
             >
@@ -662,23 +543,14 @@ export default function Learn() {
             </div>
 
             <div className="mt-4 flex items-end gap-2">
-              <span className="text-4xl font-bold">
-                {overallProgress}%
-              </span>
-              <span className="pb-1 text-sm text-slate-400">
-                completed
-              </span>
+              <span className="text-4xl font-bold">{overallProgress}%</span>
+              <span className="pb-1 text-sm text-slate-400">completed</span>
             </div>
 
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full bg-indigo-400 transition-all duration-700"
-                style={{
-                  width: `${Math.min(
-                    Math.max(overallProgress, 0),
-                    100
-                  )}%`
-                }}
+                style={{ width: `${overallProgress}%` }}
               />
             </div>
 
@@ -734,9 +606,9 @@ export default function Learn() {
 
         <StatCard
           icon={BookOpen}
-          label="Total Lessons"
-          value={totalLessons}
-          description="Lessons available in your path"
+          label="Lessons Done"
+          value={`${completedLessons}/${totalLessons}`}
+          description="Completed lessons across your path"
         />
       </section>
 
@@ -759,13 +631,27 @@ export default function Learn() {
               <p className="mt-1 text-sm text-slate-500">
                 {continueModule.description}
               </p>
+
+              <div className="mt-3 flex items-center gap-3">
+                <div className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-indigo-500 transition-all"
+                    style={{ width: `${continueModule.progress}%` }}
+                  />
+                </div>
+                <span className="text-xs font-medium text-indigo-600">
+                  {continueModule.progress}%
+                </span>
+              </div>
             </div>
 
             <button
-              onClick={() => setSelectedModule(continueModule)}
+              onClick={() => openModule(continueModule)}
               className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700"
             >
-              Open Module
+              {continueModule.status === "in_progress"
+                ? "Continue Module"
+                : "Open Module"}
               <ArrowRight size={16} />
             </button>
           </div>
@@ -779,7 +665,7 @@ export default function Learn() {
               Learning Modules
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Explore your assigned courses and learning activities.
+              Explore your assigned courses and track your progress.
             </p>
           </div>
 
@@ -816,7 +702,7 @@ export default function Learn() {
             {[
               ["all", "All Modules"],
               ["in_progress", "In Progress"],
-              ["available", "Available"],
+              ["available", "Not Started"],
               ["completed", "Completed"],
               ["locked", "Locked"]
             ].map(([value, label]) => (
@@ -837,10 +723,7 @@ export default function Learn() {
 
         {filteredModules.length === 0 ? (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-            <BookOpen
-              size={34}
-              className="mx-auto text-slate-300"
-            />
+            <BookOpen size={34} className="mx-auto text-slate-300" />
 
             <h3 className="mt-4 font-semibold text-slate-800">
               {modules.length === 0
@@ -869,180 +752,12 @@ export default function Learn() {
               <ModuleCard
                 key={module.id}
                 module={module}
-                onOpen={setSelectedModule}
+                onOpen={openModule}
               />
             ))}
           </div>
         )}
       </section>
-
-      {selectedModule && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:p-5">
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-100 p-4 sm:p-5">
-              <div className="min-w-0 pr-3">
-                <p className="text-xs font-medium uppercase tracking-wider text-indigo-600">
-                  Module {selectedModule.order}
-                </p>
-
-                <h2 className="mt-1 text-xl font-bold text-slate-900">
-                  {selectedModule.title}
-                </h2>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  {selectedModule.description}
-                </p>
-              </div>
-
-              <button
-                onClick={closeModule}
-                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
-              {selectedModule.skills.length > 0 && (
-                <div className="mb-5">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Skills Covered
-                  </p>
-
-                  <div className="flex flex-wrap gap-2">
-                    {selectedModule.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700"
-                      >
-                        {typeof skill === "string"
-                          ? skill
-                          : skill.name || skill.title}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-semibold text-slate-900">
-                  Lessons & Activities
-                </h3>
-
-                <span className="text-xs text-slate-500">
-                  {selectedModule.lessons.length} lessons
-                </span>
-              </div>
-
-              {selectedModule.lessons.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center">
-                  <BookOpen
-                    size={28}
-                    className="mx-auto text-slate-300"
-                  />
-
-                  <p className="mt-3 text-sm font-medium text-slate-700">
-                    Lessons will be added soon
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    Your mentor is preparing learning content.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedModule.lessons.map((lesson, index) => (
-                    <LessonItem
-                      key={lesson.id || lesson.lesson_id || index}
-                      lesson={lesson}
-                      index={index}
-                      onOpen={openLesson}
-                      busy={busyLesson === String(lesson.id || lesson.lesson_id)}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {selectedModule.activeLesson && (
-                <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50 p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-slate-900">
-                      {selectedModule.activeLesson.title}
-                    </h3>
-
-                    <button
-                      onClick={() =>
-                        setSelectedModule(prev => ({
-                          ...prev,
-                          activeLesson: null
-                        }))
-                      }
-                      className="rounded-lg p-1 hover:bg-indigo-100"
-                    >
-                      <X size={17} />
-                    </button>
-                  </div>
-
-                  <div className="prose prose-sm mt-3 max-w-none whitespace-pre-wrap text-slate-700">
-                    {selectedModule.activeLesson.content}
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      markLessonComplete(selectedModule.activeLesson)
-                    }
-                    disabled={busyLesson !== ""}
-                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    <CheckCircle2 size={16} />
-                    Mark as Completed
-                  </button>
-                </div>
-              )}
-
-              {selectedModule.assignment && (
-                <div className="mt-5 rounded-xl border border-amber-100 bg-amber-50 p-4">
-                  <div className="flex items-center gap-2">
-                    <Target size={18} className="text-amber-600" />
-                    <h3 className="font-semibold text-slate-900">
-                      Module Assignment
-                    </h3>
-                  </div>
-
-                  <p className="mt-2 text-sm text-slate-600">
-                    {selectedModule.assignment.title ||
-                      selectedModule.assignment.description ||
-                      "Complete the assigned practical task."}
-                  </p>
-
-                  {selectedModule.assignment.url && (
-                    <a
-                      href={selectedModule.assignment.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-indigo-600"
-                    >
-                      View Assignment
-                      <ExternalLink size={14} />
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 p-4">
-              <StatusBadge status={selectedModule.status} />
-
-              <button
-                onClick={closeModule}
-                className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
