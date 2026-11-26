@@ -13,6 +13,7 @@ import Login from "./Login";
 import Dash from "./Dash";
 import Drawer from "./Drawer";
 import Learn from "./Learn";
+import LearnDetails from "./LearnDetails";
 import Skills from "./Skills";
 import Attendance from "./Attendance";
 import Profile from "./Profile";
@@ -37,6 +38,7 @@ import LogbookAdmin from "./pages/admin/LogbookAdmin";
 import CertificatesAdmin from "./pages/admin/CertificatesAdmin";
 import AnnouncementsAdmin from "./pages/admin/AnnouncementsAdmin";
 import AdminSettings from "./pages/admin/AdminSettings";
+
 
 import { apiGet } from "./lib/api";
 
@@ -493,6 +495,10 @@ export default function App() {
             <Route
               path="learn"
               element={<Learn />}
+            />
+            <Route
+              path="learn/:id"
+              element={<LearnDetails />}
             />
 
             <Route
