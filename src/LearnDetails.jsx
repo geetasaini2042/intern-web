@@ -1,11 +1,11 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, ArrowRight, Award, Bookmark, BookOpen,
   Check, CheckCircle2, ChevronLeft, ChevronRight,
   Circle, Code2, Copy, ExternalLink, FileText,
-  HelpCircle, Image as ImageIcon, Info, Layers, LayoutList,
-  Link2, ListChecks, Loader2,
+  HelpCircle, Info, Link2, ListChecks, Loader2,
   Maximize2, Minimize2, RefreshCw, Search,
   StickyNote, Target, Video, X
 } from "lucide-react";
@@ -157,202 +157,65 @@ function writeStorage(key, value) {
 }
 
 /* ----------------------------------
-   SORTING (lessons + content blocks)
-   Admin decides the order using any of these fields:
-   order | sort_order | position | order_index | display_order
-   Items without an order keep their original sequence
-   and come after the ordered ones.
----------------------------------- */
-
-const ORDER_FIELDS = [
-  "order",
-  "sort_order",
-  "position",
-  "order_index",
-  "display_order"
-];
-
-function getOrderValue(item) {
-  if (!item || typeof item !== "object") return null;
-
-  for (const field of ORDER_FIELDS) {
-    const raw = item[field];
-
-    if (raw === null || raw === undefined || raw === "") continue;
-
-    const value = Number(raw);
-
-    if (Number.isFinite(value)) return value;
-  }
-
-  return null;
-}
-
-function sortByOrder(items) {
-  return items
-    .map((item, index) => ({
-      item,
-      index,
-      order: getOrderValue(item)
-    }))
-    .sort((a, b) => {
-      if (a.order !== null && b.order !== null) {
-        if (a.order !== b.order) return a.order - b.order;
-        return a.index - b.index;
-      }
-
-      if (a.order !== null) return -1;
-      if (b.order !== null) return 1;
-
-      return a.index - b.index;
-    })
-    .map(entry => entry.item);
-}
-
-// For old-style lessons (video_url, content, code...) the admin can
-// send: block_order: ["code", "video", "markdown"]
-function applyTypeOrder(blocks, typeOrder) {
-  if (!Array.isArray(typeOrder) || !typeOrder.length) return blocks;
-
-  const normalized = typeOrder.map(type => {
-    const value = String(type).toLowerCase();
-    return value === "text" ? "markdown" : value;
-  });
-
-  const rank = type => {
-    const index = normalized.indexOf(
-      type === "text" ? "markdown" : type
-    );
-
-    return index === -1 ? normalized.length : index;
-  };
-
-  return blocks
-    .map((block, index) => ({ block, index }))
-    .sort((a, b) => {
-      const diff = rank(a.block.type) - rank(b.block.type);
-      return diff !== 0 ? diff : a.index - b.index;
-    })
-    .map(entry => entry.block);
-}
-
-/* ----------------------------------
-   BLOCK META (labels + icons)
----------------------------------- */
-
-const BLOCK_META = {
-  video: { label: "Video", icon: Video },
-  markdown: { label: "Reading", icon: BookOpen },
-  text: { label: "Reading", icon: BookOpen },
-  code: { label: "Code", icon: Code2 },
-  pdf: { label: "PDF", icon: FileText },
-  image: { label: "Image", icon: ImageIcon },
-  link: { label: "Link", icon: Link2 },
-  embed: { label: "Live demo", icon: Code2 },
-  callout: { label: "Note", icon: Info },
-  quiz: { label: "Quiz", icon: HelpCircle },
-  checklist: { label: "Checklist", icon: ListChecks }
-};
-
-function getBlockLabel(block, index, allBlocks) {
-  const meta = BLOCK_META[block.type] || {
-    label: "Content",
-    icon: BookOpen
-  };
-
-  if (block.label) return block.label;
-
-  const sameType = allBlocks.filter(
-    item => item.type === block.type
-  );
-
-  if (sameType.length > 1) {
-    const position = sameType.indexOf(block) + 1;
-    return `${meta.label} ${position}`;
-  }
-
-  return meta.label;
-}
-
-/* ----------------------------------
    LESSON NORMALIZATION
 ---------------------------------- */
 
 function buildBlocks(lesson) {
-  let blocks = [];
-
   if (Array.isArray(lesson.blocks) && lesson.blocks.length) {
-    blocks = lesson.blocks.map(block => ({ ...block }));
-  } else {
-    if (lesson.video_url) {
-      blocks.push({
-        type: "video",
-        url: lesson.video_url
-      });
-    }
-
-    if (lesson.content) {
-      blocks.push({
-        type: "markdown",
-        content: lesson.content
-      });
-    }
-
-    if (lesson.code) {
-      blocks.push({
-        type: "code",
-        language: lesson.language || "text",
-        code: lesson.code
-      });
-    }
-
-    if (lesson.pdf_url) {
-      blocks.push({
-        type: "pdf",
-        url: lesson.pdf_url,
-        title: lesson.title
-      });
-    }
-
-    if (Array.isArray(lesson.questions) && lesson.questions.length) {
-      blocks.push({
-        type: "quiz",
-        questions: lesson.questions
-      });
-    }
-
-    const link = lesson.url || lesson.link || lesson.content_url;
-
-    if (link) {
-      blocks.push({
-        type: "link",
-        url: link,
-        title: lesson.title
-      });
-    }
+    return lesson.blocks;
   }
 
-  // Stable key per block (does not change when order changes)
-  blocks = blocks.map((block, index) => ({
-    ...block,
-    type: String(block.type || "").toLowerCase(),
-    _key: block.id
-      ? `b-${block.id}`
-      : `${String(block.type || "block").toLowerCase()}-${index}`
-  }));
+  const blocks = [];
 
-  // 1) explicit per-block order from admin
-  blocks = sortByOrder(blocks);
+  if (lesson.video_url) {
+    blocks.push({
+      type: "video",
+      url: lesson.video_url
+    });
+  }
 
-  // 2) optional type order for old-style lessons
-  blocks = applyTypeOrder(
-    blocks,
-    lesson.block_order || lesson.content_order
-  );
+  if (lesson.content) {
+    blocks.push({
+      type: "markdown",
+      content: lesson.content
+    });
+  }
+
+  if (lesson.code) {
+    blocks.push({
+      type: "code",
+      language: lesson.language || "text",
+      code: lesson.code
+    });
+  }
+
+  if (lesson.pdf_url) {
+    blocks.push({
+      type: "pdf",
+      url: lesson.pdf_url,
+      title: lesson.title
+    });
+  }
+
+  if (Array.isArray(lesson.questions) && lesson.questions.length) {
+    blocks.push({
+      type: "quiz",
+      questions: lesson.questions
+    });
+  }
+
+  const link = lesson.url || lesson.link || lesson.content_url;
+
+  if (link) {
+    blocks.push({
+      type: "link",
+      url: link,
+      title: lesson.title
+    });
+  }
 
   return blocks;
 }
-
 function normalizeLesson(lesson, index) {
   return {
     ...lesson,
@@ -370,10 +233,14 @@ function normalizeLesson(lesson, index) {
     section: lesson.section || lesson.chapter || "",
     duration: lesson.duration || lesson.duration_minutes,
     completed: isLessonCompleted(lesson),
-    blocks: buildBlocks(lesson)
+
+    // Admin ka original content block order preserve hoga
+    blocks: buildBlocks(lesson).map((block, blockIndex) => ({
+      ...block,
+      _order: Number(block.order ?? block.sort_order ?? block.position ?? blockIndex)
+    })).sort((a, b) => a._order - b._order)
   };
 }
-
 function normalizeModule(raw) {
   const rawLessons = Array.isArray(raw.lessons)
     ? raw.lessons
@@ -387,7 +254,7 @@ function normalizeModule(raw) {
     title: raw.title || raw.name || "Learning Module",
     description: raw.description || raw.subtitle || "",
     category: raw.category || raw.skill || "",
-    lessons: sortByOrder(rawLessons).map(normalizeLesson),
+    lessons: rawLessons.map(normalizeLesson),
     assignment: raw.assignment || null
   };
 }
@@ -1110,72 +977,6 @@ function BlockRenderer({ block, storageKey }) {
 }
 
 /* ----------------------------------
-   BLOCK NAVIGATOR (chips + Stack/Tabs toggle)
----------------------------------- */
-
-function BlockNav({
-  blocks,
-  activeKey,
-  viewMode,
-  onViewMode,
-  onSelect
-}) {
-  return (
-    <div className="mt-4 flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 sm:flex-row sm:items-center">
-      <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-        {blocks.map((block, index) => {
-          const meta = BLOCK_META[block.type] || BLOCK_META.markdown;
-          const Icon = meta.icon;
-          const active =
-            viewMode === "tabs" && activeKey === block._key;
-
-          return (
-            <button
-              key={block._key}
-              onClick={() => onSelect(block._key)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                active
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-indigo-50 hover:text-indigo-700"
-              }`}
-            >
-              <Icon size={13} />
-              {getBlockLabel(block, index, blocks)}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="grid shrink-0 grid-cols-2 gap-1 rounded-lg bg-slate-200/70 p-1 text-xs">
-        <button
-          onClick={() => onViewMode("stack")}
-          className={`flex items-center justify-center gap-1 rounded-md px-2.5 py-1 font-medium ${
-            viewMode === "stack"
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500"
-          }`}
-        >
-          <LayoutList size={13} />
-          Stack
-        </button>
-
-        <button
-          onClick={() => onViewMode("tabs")}
-          className={`flex items-center justify-center gap-1 rounded-md px-2.5 py-1 font-medium ${
-            viewMode === "tabs"
-              ? "bg-white text-slate-900 shadow-sm"
-              : "text-slate-500"
-          }`}
-        >
-          <Layers size={13} />
-          Tabs
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------------------
    PERSONAL NOTES
 ---------------------------------- */
 
@@ -1420,14 +1221,6 @@ export default function LearnDetails() {
 
   const [activeLessonId, setActiveLessonId] = useState("");
 
-  // "stack" = all blocks one below another, "tabs" = one block at a time
-  const [viewMode, setViewMode] = useState(() => {
-    const saved = readStorage("learn_view_mode", "stack");
-    return saved === "tabs" ? "tabs" : "stack";
-  });
-
-  const [activeBlockKey, setActiveBlockKey] = useState("");
-
   const [bookmarks, setBookmarks] = useState(
     () => readStorage(`learn_bookmarks_${id}`, {})
   );
@@ -1588,53 +1381,6 @@ export default function LearnDetails() {
   const isBookmarked = activeLesson
     ? Boolean(bookmarks[activeLesson.id])
     : false;
-
-  /* ----------------------------------
-     CONTENT BLOCKS (view mode)
-  ---------------------------------- */
-
-  const lessonBlocks = activeLesson?.blocks || [];
-
-  // Reset to first block whenever the lesson changes
-  useEffect(() => {
-    setActiveBlockKey(lessonBlocks[0]?._key || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLesson?.id]);
-
-  const currentBlockKey = lessonBlocks.some(
-    block => block._key === activeBlockKey
-  )
-    ? activeBlockKey
-    : lessonBlocks[0]?._key || "";
-
-  const visibleBlocks =
-    viewMode === "tabs" && lessonBlocks.length > 1
-      ? lessonBlocks.filter(block => block._key === currentBlockKey)
-      : lessonBlocks;
-
-  const changeViewMode = mode => {
-    setViewMode(mode);
-    writeStorage("learn_view_mode", mode);
-  };
-
-  const selectBlock = key => {
-    if (viewMode === "tabs") {
-      setActiveBlockKey(key);
-      return;
-    }
-
-    // Stack mode: smooth scroll to that block
-    const element = document.getElementById(
-      `block-${activeLesson?.id}-${key}`
-    );
-
-    if (element) {
-      element.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-    }
-  };
 
   /* ----------------------------------
      SELECT LESSON
@@ -2090,37 +1836,20 @@ export default function LearnDetails() {
                   </p>
                 )}
 
-                {/* BLOCK NAVIGATOR (only when lesson has 2+ parts) */}
-
-                {lessonBlocks.length > 1 && (
-                  <BlockNav
-                    blocks={lessonBlocks}
-                    activeKey={currentBlockKey}
-                    viewMode={viewMode}
-                    onViewMode={changeViewMode}
-                    onSelect={selectBlock}
-                  />
-                )}
-
                 {/* CONTENT BLOCKS */}
 
                 <div className="mt-3">
-                  {lessonBlocks.length === 0 ? (
+                  {activeLesson.blocks.length === 0 ? (
                     <p className="mt-6 rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
                       Content for this lesson is not available yet.
                     </p>
                   ) : (
-                    visibleBlocks.map(block => (
-                      <div
-                        key={`${activeLesson.id}-${block._key}`}
-                        id={`block-${activeLesson.id}-${block._key}`}
-                        className="scroll-mt-24"
-                      >
-                        <BlockRenderer
-                          block={block}
-                          storageKey={`learn_block_${id}_${activeLesson.id}_${block._key}`}
-                        />
-                      </div>
+                    activeLesson.blocks.map((block, index) => (
+                      <BlockRenderer
+                        key={`${activeLesson.id}-${index}`}
+                        block={block}
+                        storageKey={`learn_block_${id}_${activeLesson.id}_${index}`}
+                      />
                     ))
                   )}
                 </div>

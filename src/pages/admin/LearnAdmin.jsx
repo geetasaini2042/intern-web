@@ -1,35 +1,39 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../../lib/api";
+
 
 const createId = (prefix) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const createEmptyBlock = (type = "text") => {
+  const base = { id: createId("block") };
+
   switch (type) {
     case "code":
-      return { type: "code", title: "", language: "javascript", code: "", output: "" };
+      return { ...base, type: "code", title: "", language: "javascript", code: "", output: "" };
     case "video":
-      return { type: "video", title: "", url: "" };
+      return { ...base, type: "video", title: "", url: "" };
     case "pdf":
-      return { type: "pdf", title: "", url: "" };
+      return { ...base, type: "pdf", title: "", url: "" };
     case "image":
-      return { type: "image", url: "", caption: "" };
+      return { ...base, type: "image", url: "", caption: "" };
     case "link":
-      return { type: "link", title: "", url: "", description: "" };
+      return { ...base, type: "link", title: "", url: "", description: "" };
     case "embed":
-      return { type: "embed", title: "", url: "", height: 420 };
+      return { ...base, type: "embed", title: "", url: "", height: 420 };
     case "callout":
-      return { type: "callout", tone: "info", title: "", content: "" };
+      return { ...base, type: "callout", tone: "info", title: "", content: "" };
     case "quiz":
       return {
+        ...base,
         type: "quiz",
         title: "Quick Quiz",
         questions: [{ question: "", options: ["", "", "", ""], answer: 0, explanation: "" }]
       };
     case "checklist":
-      return { type: "checklist", title: "Practice Checklist", items: [""] };
+      return { ...base, type: "checklist", title: "Practice Checklist", items: [""] };
     default:
-      return { type: "text", content: "" };
+      return { ...base, type: "text", content: "" };
   }
 };
 
@@ -81,25 +85,141 @@ const isValidUrlOrPath = (url) => {
   return /^https?:\/\/.+/i.test(trimmed) || (/^\//.test(trimmed) && !/^\/\//.test(trimmed));
 };
 
+/* ----------------------------------
+   ORDERING HELPERS
+---------------------------------- */
+
+const ORDER_FIELDS = ["order", "sort_order", "position", "order_index", "display_order"];
+
+const getOrderValue = (item) => {
+  if (!item || typeof item !== "object") return null;
+
+  for (const field of ORDER_FIELDS) {
+    const raw = item[field];
+    if (raw === null || raw === undefined || raw === "") continue;
+    const value = Number(raw);
+    if (Number.isFinite(value)) return value;
+  }
+
+  return null;
+};
+
+// Items with an order come first (ascending), the rest keep their original sequence.
+const sortByOrder = (items) =>
+  (items || [])
+    .map((item, index) => ({ item, index, order: getOrderValue(item) }))
+    .sort((a, b) => {
+      if (a.order !== null && b.order !== null) {
+        return a.order !== b.order ? a.order - b.order : a.index - b.index;
+      }
+      if (a.order !== null) return -1;
+      if (b.order !== null) return 1;
+      return a.index - b.index;
+    })
+    .map((entry) => entry.item);
+
+const moveItem = (list, from, to) => {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
+    return list;
+  }
+
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+};
+
+const withBlockIds = (blocks) =>
+  (blocks || []).map((block) => ({
+    ...block,
+    id: block.id || createId("block")
+  }));
+
+/* ----------------------------------
+   BLOCK META
+---------------------------------- */
+
+const BLOCK_META = {
+  text: { label: "Text", cls: "bg-slate-100 text-slate-700" },
+  markdown: { label: "Text", cls: "bg-slate-100 text-slate-700" },
+  video: { label: "Video", cls: "bg-rose-50 text-rose-700" },
+  code: { label: "Code", cls: "bg-violet-50 text-violet-700" },
+  pdf: { label: "PDF", cls: "bg-orange-50 text-orange-700" },
+  image: { label: "Image", cls: "bg-sky-50 text-sky-700" },
+  link: { label: "Link", cls: "bg-blue-50 text-blue-700" },
+  embed: { label: "Embed", cls: "bg-teal-50 text-teal-700" },
+  callout: { label: "Callout", cls: "bg-amber-50 text-amber-700" },
+  quiz: { label: "Quiz", cls: "bg-indigo-50 text-indigo-700" },
+  checklist: { label: "Checklist", cls: "bg-emerald-50 text-emerald-700" }
+};
+
+const ADDABLE_BLOCKS = [
+  "text",
+  "video",
+  "code",
+  "pdf",
+  "image",
+  "link",
+  "embed",
+  "callout",
+  "checklist",
+  "quiz"
+];
+
+const truncate = (value, max = 70) => {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+};
+
+const getBlockPreview = (block) => {
+  switch (block.type) {
+    case "text":
+    case "markdown":
+      return truncate(block.content) || "Empty text";
+    case "code":
+      return truncate(block.title || block.code) || "Empty code";
+    case "callout":
+      return truncate(block.title || block.content) || "Empty callout";
+    case "quiz":
+      return `${block.title || "Quiz"} · ${(block.questions || []).length} question(s)`;
+    case "checklist":
+      return `${block.title || "Checklist"} · ${
+        (block.items || []).filter((i) => String(i).trim()).length
+      } item(s)`;
+    case "image":
+      return truncate(block.caption || block.url) || "No image yet";
+    default:
+      return truncate(block.title || block.url) || "No link yet";
+  }
+};
+
+/* ----------------------------------
+   LEGACY / NORMALIZATION
+---------------------------------- */
+
 const extractLegacyLessons = (item) => {
   if (Array.isArray(item.lessons) && item.lessons.length > 0) {
-    return item.lessons.map((lesson, idx) => ({
-      id: lesson.id || lesson.lesson_id || createId(`lesson-${idx}`),
-      title: lesson.title || lesson.name || `Lesson ${idx + 1}`,
-      type: String(lesson.type || lesson.content_type || "reading").toLowerCase(),
-      section: lesson.section || lesson.chapter || "",
-      duration: lesson.duration || lesson.duration_minutes || "",
-      description: lesson.description || "",
-      blocks:
+    return sortByOrder(item.lessons).map((lesson, idx) => {
+      const blocks =
         Array.isArray(lesson.blocks) && lesson.blocks.length > 0
-          ? lesson.blocks
+          ? sortByOrder(lesson.blocks)
           : [
               ...(lesson.video_url ? [{ type: "video", title: lesson.title || "", url: lesson.video_url }] : []),
               ...(lesson.content ? [{ type: "text", content: lesson.content }] : []),
               ...(lesson.pdf_url ? [{ type: "pdf", title: lesson.title || "", url: lesson.pdf_url }] : []),
               ...(lesson.url ? [{ type: "link", title: lesson.title || "", url: lesson.url, description: "" }] : [])
-            ]
-    }));
+            ];
+
+      return {
+        id: lesson.id || lesson.lesson_id || createId(`lesson-${idx}`),
+        title: lesson.title || lesson.name || `Lesson ${idx + 1}`,
+        type: String(lesson.type || lesson.content_type || "reading").toLowerCase(),
+        section: lesson.section || lesson.chapter || "",
+        duration: lesson.duration || lesson.duration_minutes || "",
+        description: lesson.description || "",
+        blocks: withBlockIds(blocks.length ? blocks : [createEmptyBlock("text")])
+      };
+    });
   }
 
   const blocks = [];
@@ -123,10 +243,14 @@ const extractLegacyLessons = (item) => {
       section: "",
       duration: "",
       description: item.description || "",
-      blocks: blocks.length ? blocks : [createEmptyBlock("text")]
+      blocks: withBlockIds(blocks.length ? blocks : [createEmptyBlock("text")])
     }
   ];
 };
+
+/* ----------------------------------
+   MAIN COMPONENT
+---------------------------------- */
 
 export default function LearnAdmin() {
   const [modules, setModules] = useState([]);
@@ -150,6 +274,14 @@ export default function LearnAdmin() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  // Lesson editor UI state
+  const [collapsedLessons, setCollapsedLessons] = useState({});
+  const [compactLessons, setCompactLessons] = useState({});
+
+  // Drag & drop state
+  const dragRef = useRef(null);
+  const [dropTarget, setDropTarget] = useState("");
+
   useEffect(() => {
     loadData();
   }, []);
@@ -165,7 +297,7 @@ export default function LearnAdmin() {
         apiGet("/admin/batches")
       ]);
 
-      setModules(normalizeList(learnRes, ["modules", "materials"]));
+      setModules(   sortByOrder(normalizeList(learnRes, ["modules", "materials"])) );
       setPrograms(normalizeList(programRes, ["programs"]));
       setBatches(normalizeList(batchRes, ["batches"]));
     } catch (err) {
@@ -230,19 +362,37 @@ export default function LearnAdmin() {
     0
   );
 
+  /* ----------------------------------
+     OPEN / CLOSE MODAL
+  ---------------------------------- */
+
+  const collapseAllExceptFirst = (lessons) => {
+    const next = {};
+    lessons.slice(1).forEach((lesson) => {
+      next[lesson.id] = true;
+    });
+    setCollapsedLessons(next);
+    setCompactLessons({});
+  };
+
   const openCreate = () => {
+    const lessons = [createEmptyLesson(0)];
+
     setEditing(null);
     setForm({
       ...EMPTY_FORM,
       order: modules.length + 1,
-      lessons: [createEmptyLesson(0)]
+      lessons
     });
+    collapseAllExceptFirst(lessons);
     setActiveTab("details");
     setError("");
     setModalOpen(true);
   };
 
   const openEdit = (item) => {
+    const lessons = extractLegacyLessons(item);
+
     setEditing(item);
     setForm({
       title: item.title || item.name || "",
@@ -258,12 +408,17 @@ export default function LearnAdmin() {
         url: item.assignment?.url || "",
         task_id: item.assignment?.task_id || ""
       },
-      lessons: extractLegacyLessons(item)
+      lessons
     });
+    collapseAllExceptFirst(lessons);
     setActiveTab("details");
     setError("");
     setModalOpen(true);
   };
+
+  /* ----------------------------------
+     FORM HANDLERS
+  ---------------------------------- */
 
   const handleFieldChange = (e) => {
     const { name, value } = e.target;
@@ -282,10 +437,15 @@ export default function LearnAdmin() {
   };
 
   const addLesson = () => {
+    const lesson = createEmptyLesson(form.lessons.length);
+
     setForm((prev) => ({
       ...prev,
-      lessons: [...prev.lessons, createEmptyLesson(prev.lessons.length)]
+      lessons: [...prev.lessons, lesson]
     }));
+
+    // keep the new lesson open
+    setCollapsedLessons((prev) => ({ ...prev, [lesson.id]: false }));
   };
 
   const removeLesson = (lessonIndex) => {
@@ -301,6 +461,13 @@ export default function LearnAdmin() {
       lessons: prev.lessons.map((lesson, idx) =>
         idx === lessonIndex ? { ...lesson, [field]: value } : lesson
       )
+    }));
+  };
+
+  const reorderLessons = (from, to) => {
+    setForm((prev) => ({
+      ...prev,
+      lessons: moveItem(prev.lessons, from, to)
     }));
   };
 
@@ -342,6 +509,97 @@ export default function LearnAdmin() {
     }));
   };
 
+  const reorderBlocks = (lessonIndex, from, to) => {
+    setForm((prev) => ({
+      ...prev,
+      lessons: prev.lessons.map((lesson, idx) =>
+        idx === lessonIndex
+          ? { ...lesson, blocks: moveItem(lesson.blocks || [], from, to) }
+          : lesson
+      )
+    }));
+  };
+
+  const toggleLessonCollapse = (lessonId) => {
+    setCollapsedLessons((prev) => ({ ...prev, [lessonId]: !prev[lessonId] }));
+  };
+
+  const toggleLessonCompact = (lessonId) => {
+    setCompactLessons((prev) => ({ ...prev, [lessonId]: !prev[lessonId] }));
+  };
+
+  const setAllLessonsCollapsed = (collapsed) => {
+    const next = {};
+    form.lessons.forEach((lesson) => {
+      next[lesson.id] = collapsed;
+    });
+    setCollapsedLessons(next);
+  };
+
+  /* ----------------------------------
+     DRAG & DROP
+     Drag only starts from the grip handle, so typing
+     and text selection inside inputs keep working.
+  ---------------------------------- */
+
+  const getDragHandleProps = (payload, cardDomId) => ({
+    draggable: true,
+    onDragStart: (e) => {
+      dragRef.current = payload;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", "reorder");
+
+      const card = document.getElementById(cardDomId);
+      if (card) e.dataTransfer.setDragImage(card, 24, 24);
+    },
+    onDragEnd: () => {
+      dragRef.current = null;
+      setDropTarget("");
+    }
+  });
+
+  const getDropProps = (kind, lessonIndex, blockIndex = -1) => {
+    const key = kind === "lesson" ? `lesson-${lessonIndex}` : `block-${lessonIndex}-${blockIndex}`;
+
+    const isValid = () => {
+      const drag = dragRef.current;
+      if (!drag || drag.kind !== kind) return false;
+      if (kind === "block" && drag.lessonIndex !== lessonIndex) return false;
+      return true;
+    };
+
+    return {
+      onDragOver: (e) => {
+        if (!isValid()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        if (dropTarget !== key) setDropTarget(key);
+      },
+      onDrop: (e) => {
+        if (!isValid()) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const drag = dragRef.current;
+
+        if (kind === "lesson") {
+          reorderLessons(drag.index, lessonIndex);
+        } else {
+          reorderBlocks(lessonIndex, drag.index, blockIndex);
+        }
+
+        dragRef.current = null;
+        setDropTarget("");
+      },
+      isTarget: dropTarget === key
+    };
+  };
+
+  /* ----------------------------------
+     SAVE / DELETE
+  ---------------------------------- */
+
   const handleSave = async (e) => {
     e.preventDefault();
 
@@ -357,23 +615,32 @@ export default function LearnAdmin() {
       return;
     }
 
+    // `order` is written from the current position, so
+    // whatever the admin arranged is exactly what students see.
     const cleanedLessons = form.lessons
-      .filter((l) => l.title.trim())
+      .filter((l) => (l.title || "").trim())
       .map((l, idx) => ({
         id: l.id || createId(`lesson-${idx}`),
         title: l.title.trim(),
         type: l.type || "reading",
-        section: l.section.trim(),
+        section: (l.section || "").trim(),
         duration: l.duration,
-        description: l.description.trim(),
-        blocks: (l.blocks || []).filter((b) => {
-          if (b.type === "text" || b.type === "markdown") return Boolean(b.content?.trim());
-          if (b.type === "code") return Boolean(b.code?.trim());
-          if (b.type === "callout") return Boolean(b.content?.trim());
-          if (b.type === "quiz") return Array.isArray(b.questions) && b.questions.length > 0;
-          if (b.type === "checklist") return Array.isArray(b.items) && b.items.some((i) => i.trim());
-          return Boolean(b.url?.trim());
-        })
+        description: (l.description || "").trim(),
+        order: idx + 1,
+        blocks: (l.blocks || [])
+          .filter((b) => {
+            if (b.type === "text" || b.type === "markdown") return Boolean(b.content?.trim());
+            if (b.type === "code") return Boolean(b.code?.trim());
+            if (b.type === "callout") return Boolean(b.content?.trim());
+            if (b.type === "quiz") return Array.isArray(b.questions) && b.questions.length > 0;
+            if (b.type === "checklist") return Array.isArray(b.items) && b.items.some((i) => i.trim());
+            return Boolean(b.url?.trim());
+          })
+          .map((b, bIdx) => ({
+            ...b,
+            id: b.id || createId("block"),
+            order: bIdx + 1
+          }))
       }));
 
     const hasAssignment =
@@ -397,7 +664,7 @@ export default function LearnAdmin() {
             title: form.assignment.title.trim(),
             description: form.assignment.description.trim(),
             url: form.assignment.url.trim(),
-            task_id: form.assignment.task_id.trim()
+            task_id: String(form.assignment.task_id || "").trim()
           }
         : null
     };
@@ -437,6 +704,10 @@ export default function LearnAdmin() {
       setDeleteTarget(null);
     }
   };
+
+  /* ----------------------------------
+     RENDER
+  ---------------------------------- */
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
@@ -694,6 +965,10 @@ export default function LearnAdmin() {
         )}
       </div>
 
+      {/* ----------------------------------
+          MODULE MODAL
+      ---------------------------------- */}
+
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-3 sm:p-4">
           <div className="my-auto flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -703,7 +978,7 @@ export default function LearnAdmin() {
                   {editing ? "Edit Learning Module" : "Create Learning Module"}
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Configure module info, lessons, content blocks, and assignment
+                  Configure module info, lessons, content order, and assignment
                 </p>
               </div>
               <button
@@ -714,7 +989,7 @@ export default function LearnAdmin() {
               </button>
             </div>
 
-            <div className="flex gap-2 border-b border-slate-100 bg-slate-50 px-5 py-2.5">
+            <div className="flex gap-2 overflow-x-auto border-b border-slate-100 bg-slate-50 px-5 py-2.5">
               {[
                 { id: "details", label: "Module Details" },
                 { id: "lessons", label: `Lessons (${form.lessons.length})` },
@@ -724,7 +999,7 @@ export default function LearnAdmin() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+                  className={`shrink-0 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
                     activeTab === tab.id
                       ? "bg-indigo-600 text-white"
                       : "text-slate-600 hover:bg-slate-200/70"
@@ -742,6 +1017,8 @@ export default function LearnAdmin() {
                     {error}
                   </div>
                 )}
+
+                {/* DETAILS TAB */}
 
                 {activeTab === "details" && (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -856,102 +1133,245 @@ export default function LearnAdmin() {
                   </div>
                 )}
 
+                {/* LESSONS TAB */}
+
                 {activeTab === "lessons" && (
                   <div className="space-y-4">
-                    {form.lessons.map((lesson, lIdx) => (
-                      <div
-                        key={lesson.id || lIdx}
-                        className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <h3 className="text-sm font-bold text-slate-800">
-                            Lesson {lIdx + 1}
-                          </h3>
-                          {form.lessons.length > 1 && (
+                    {/* Ordering hint + bulk controls */}
+                    <div className="flex flex-col gap-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-2.5">
+                        <span className="mt-0.5 text-indigo-600">
+                          <GripIcon />
+                        </span>
+                        <p className="text-xs leading-5 text-indigo-900">
+                          <span className="font-semibold">Order set karo:</span> grip handle se drag karo,
+                          position number type karo, ya ↑ ↓ use karo. Students ko lessons aur content
+                          isi order me dikhega.
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setAllLessonsCollapsed(true)}
+                          className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                        >
+                          Collapse all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAllLessonsCollapsed(false)}
+                          className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+                        >
+                          Expand all
+                        </button>
+                      </div>
+                    </div>
+
+                    {form.lessons.map((lesson, lIdx) => {
+                      const collapsed = Boolean(collapsedLessons[lesson.id]);
+                      const compact = Boolean(compactLessons[lesson.id]);
+                      const blocks = lesson.blocks || [];
+                      const lessonDomId = `lesson-card-${lesson.id}`;
+                      const lessonDrop = getDropProps("lesson", lIdx);
+
+                      return (
+                        <div
+                          key={lesson.id || lIdx}
+                          id={lessonDomId}
+                          onDragOver={lessonDrop.onDragOver}
+                          onDrop={lessonDrop.onDrop}
+                          className={`rounded-xl border bg-slate-50/70 transition ${
+                            lessonDrop.isTarget
+                              ? "border-indigo-400 ring-2 ring-indigo-300"
+                              : "border-slate-200"
+                          }`}
+                        >
+                          {/* Lesson header */}
+                          <div className="flex flex-wrap items-center gap-2 p-3">
+                            <span
+                              {...getDragHandleProps(
+                                { kind: "lesson", index: lIdx },
+                                lessonDomId
+                              )}
+                              title="Drag to reorder lesson"
+                              className="flex h-8 w-7 cursor-grab items-center justify-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-600 active:cursor-grabbing"
+                            >
+                              <GripIcon />
+                            </span>
+
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-xs font-bold text-white">
+                              {lIdx + 1}
+                            </span>
+
                             <button
                               type="button"
-                              onClick={() => removeLesson(lIdx)}
-                              className="text-xs font-medium text-red-600 hover:underline"
+                              onClick={() => toggleLessonCollapse(lesson.id)}
+                              className="min-w-0 flex-1 text-left"
                             >
-                              Remove Lesson
+                              <p className="truncate text-sm font-bold text-slate-800">
+                                {lesson.title || "Untitled lesson"}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {blocks.length} content block{blocks.length === 1 ? "" : "s"}
+                                {lesson.section ? ` · ${lesson.section}` : ""}
+                              </p>
                             </button>
+
+                            <div className="flex items-center gap-1.5">
+                              <PositionControl
+                                index={lIdx}
+                                total={form.lessons.length}
+                                onMove={(to) => reorderLessons(lIdx, to)}
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() => toggleLessonCollapse(lesson.id)}
+                                title={collapsed ? "Expand" : "Collapse"}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs text-slate-500 hover:bg-slate-100"
+                              >
+                                {collapsed ? "▾" : "▴"}
+                              </button>
+
+                              {form.lessons.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeLesson(lIdx)}
+                                  title="Remove lesson"
+                                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-white text-sm text-red-500 hover:bg-red-50"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {!collapsed && (
+                            <div className="border-t border-slate-200 p-4">
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                <input
+                                  value={lesson.title}
+                                  onChange={(e) => updateLesson(lIdx, "title", e.target.value)}
+                                  placeholder="Lesson title"
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 sm:col-span-2"
+                                />
+                                <select
+                                  value={lesson.type}
+                                  onChange={(e) => updateLesson(lIdx, "type", e.target.value)}
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                                >
+                                  <option value="reading">Reading</option>
+                                  <option value="video">Video</option>
+                                  <option value="code">Code</option>
+                                  <option value="pdf">PDF</option>
+                                  <option value="quiz">Quiz</option>
+                                  <option value="practice">Practice</option>
+                                </select>
+                                <input
+                                  value={lesson.duration}
+                                  onChange={(e) => updateLesson(lIdx, "duration", e.target.value)}
+                                  placeholder="Duration (e.g. 15 min)"
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                                />
+                                <input
+                                  value={lesson.section}
+                                  onChange={(e) => updateLesson(lIdx, "section", e.target.value)}
+                                  placeholder="Section / Chapter (optional)"
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 sm:col-span-2"
+                                />
+                                <input
+                                  value={lesson.description}
+                                  onChange={(e) => updateLesson(lIdx, "description", e.target.value)}
+                                  placeholder="Short lesson summary"
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 sm:col-span-2"
+                                />
+                              </div>
+
+                              {/* Content blocks header */}
+                              <div className="mt-5 flex items-center justify-between gap-2">
+                                <div>
+                                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                    Content order
+                                  </h4>
+                                  <p className="text-[11px] text-slate-400">
+                                    Top to bottom = student ko isi order me dikhega
+                                  </p>
+                                </div>
+
+                                {blocks.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleLessonCompact(lesson.id)}
+                                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium ${
+                                      compact
+                                        ? "border-indigo-300 bg-indigo-600 text-white"
+                                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    {compact ? "Compact: ON" : "Compact view"}
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="mt-3 space-y-2.5">
+                                {blocks.map((block, bIdx) => {
+                                  const blockDomId = `block-card-${block.id}`;
+                                  const blockDrop = getDropProps("block", lIdx, bIdx);
+
+                                  return (
+                                    <BlockEditor
+                                      key={block.id || bIdx}
+                                      block={block}
+                                      index={bIdx}
+                                      total={blocks.length}
+                                      compact={compact}
+                                      domId={blockDomId}
+                                      isDropTarget={blockDrop.isTarget}
+                                      dragHandleProps={getDragHandleProps(
+                                        { kind: "block", lessonIndex: lIdx, index: bIdx },
+                                        blockDomId
+                                      )}
+                                      dropProps={{
+                                        onDragOver: blockDrop.onDragOver,
+                                        onDrop: blockDrop.onDrop
+                                      }}
+                                      onMove={(to) => reorderBlocks(lIdx, bIdx, to)}
+                                      onChange={(field, val) => updateBlock(lIdx, bIdx, field, val)}
+                                      onRemove={() => removeBlock(lIdx, bIdx)}
+                                    />
+                                  );
+                                })}
+
+                                {blocks.length === 0 && (
+                                  <p className="rounded-xl border border-dashed border-slate-300 bg-white py-6 text-center text-xs text-slate-400">
+                                    No content yet. Add a block below.
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="mt-4 rounded-xl border border-dashed border-slate-300 bg-white p-3">
+                                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                                  Add content block
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {ADDABLE_BLOCKS.map((type) => (
+                                    <button
+                                      key={type}
+                                      type="button"
+                                      onClick={() => addBlock(lIdx, type)}
+                                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium capitalize text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
+                                    >
+                                      + {type}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
                           )}
                         </div>
-
-                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                          <input
-                            value={lesson.title}
-                            onChange={(e) => updateLesson(lIdx, "title", e.target.value)}
-                            placeholder="Lesson title"
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 sm:col-span-2"
-                          />
-                          <select
-                            value={lesson.type}
-                            onChange={(e) => updateLesson(lIdx, "type", e.target.value)}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400"
-                          >
-                            <option value="reading">Reading</option>
-                            <option value="video">Video</option>
-                            <option value="code">Code</option>
-                            <option value="pdf">PDF</option>
-                            <option value="quiz">Quiz</option>
-                            <option value="practice">Practice</option>
-                          </select>
-                          <input
-                            value={lesson.duration}
-                            onChange={(e) => updateLesson(lIdx, "duration", e.target.value)}
-                            placeholder="Duration (e.g. 15 min)"
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400"
-                          />
-                          <input
-                            value={lesson.section}
-                            onChange={(e) => updateLesson(lIdx, "section", e.target.value)}
-                            placeholder="Section / Chapter (optional)"
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 sm:col-span-2"
-                          />
-                          <input
-                            value={lesson.description}
-                            onChange={(e) => updateLesson(lIdx, "description", e.target.value)}
-                            placeholder="Short lesson summary"
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 sm:col-span-2"
-                          />
-                        </div>
-
-                        <div className="mt-4 space-y-3">
-                          {(lesson.blocks || []).map((block, bIdx) => (
-                            <BlockEditor
-                              key={bIdx}
-                              block={block}
-                              onChange={(field, val) => updateBlock(lIdx, bIdx, field, val)}
-                              onRemove={() => removeBlock(lIdx, bIdx)}
-                            />
-                          ))}
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {[
-                            "text",
-                            "video",
-                            "code",
-                            "pdf",
-                            "image",
-                            "link",
-                            "callout",
-                            "checklist",
-                            "quiz"
-                          ].map((type) => (
-                            <button
-                              key={type}
-                              type="button"
-                              onClick={() => addBlock(lIdx, type)}
-                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium capitalize text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
-                            >
-                              + {type}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
                     <button
                       type="button"
@@ -962,6 +1382,8 @@ export default function LearnAdmin() {
                     </button>
                   </div>
                 )}
+
+                {/* ASSIGNMENT TAB */}
 
                 {activeTab === "assignment" && (
                   <div className="space-y-4">
@@ -1068,271 +1490,431 @@ export default function LearnAdmin() {
   );
 }
 
-function BlockEditor({ block, onChange, onRemove }) {
+/* ----------------------------------
+   ORDER UI PIECES
+---------------------------------- */
+
+function GripIcon() {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase text-slate-600">
-          {block.type}
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <circle cx="5" cy="3" r="1.3" />
+      <circle cx="11" cy="3" r="1.3" />
+      <circle cx="5" cy="8" r="1.3" />
+      <circle cx="11" cy="8" r="1.3" />
+      <circle cx="5" cy="13" r="1.3" />
+      <circle cx="11" cy="13" r="1.3" />
+    </svg>
+  );
+}
+
+// Type a position number (applied on Enter / blur) or use the arrows.
+function PositionControl({ index, total, onMove }) {
+  const [draft, setDraft] = useState(String(index + 1));
+
+  useEffect(() => {
+    setDraft(String(index + 1));
+  }, [index]);
+
+  const commit = () => {
+    const parsed = parseInt(draft, 10);
+
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(index + 1));
+      return;
+    }
+
+    const clamped = Math.min(Math.max(parsed, 1), total);
+    setDraft(String(clamped));
+
+    if (clamped - 1 !== index) onMove(clamped - 1);
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onMove(index - 1)}
+        disabled={index === 0}
+        title="Move up"
+        className="flex h-8 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+      >
+        ↑
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onMove(index + 1)}
+        disabled={index === total - 1}
+        title="Move down"
+        className="flex h-8 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+      >
+        ↓
+      </button>
+
+      <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white pl-2">
+        <span className="text-[10px] font-semibold uppercase text-slate-400">Pos</span>
+        <input
+          type="number"
+          min={1}
+          max={total}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+              e.currentTarget.blur();
+            }
+          }}
+          title="Type position number and press Enter"
+          className="h-8 w-11 rounded-r-lg bg-transparent px-1.5 text-center text-xs font-semibold text-slate-700 outline-none focus:bg-indigo-50"
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ----------------------------------
+   BLOCK EDITOR
+---------------------------------- */
+
+function BlockEditor({
+  block,
+  index,
+  total,
+  compact,
+  domId,
+  isDropTarget,
+  dragHandleProps,
+  dropProps,
+  onMove,
+  onChange,
+  onRemove
+}) {
+  const [open, setOpen] = useState(true);
+
+  const meta = BLOCK_META[block.type] || BLOCK_META.text;
+  const showBody = open && !compact;
+
+  return (
+    <div
+      id={domId}
+      onDragOver={dropProps.onDragOver}
+      onDrop={dropProps.onDrop}
+      className={`rounded-xl border bg-white transition ${
+        isDropTarget ? "border-indigo-400 ring-2 ring-indigo-300" : "border-slate-200"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2 p-2.5">
+        <span
+          {...dragHandleProps}
+          title="Drag to reorder"
+          className="flex h-8 w-7 cursor-grab items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing"
+        >
+          <GripIcon />
         </span>
+
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-slate-100 text-[11px] font-bold text-slate-600">
+          {index + 1}
+        </span>
+
+        <span
+          className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase ${meta.cls}`}
+        >
+          {meta.label}
+        </span>
+
         <button
           type="button"
-          onClick={onRemove}
-          className="text-xs font-medium text-red-500 hover:underline"
+          onClick={() => !compact && setOpen((value) => !value)}
+          className="min-w-0 flex-1 truncate text-left text-xs text-slate-500"
         >
-          Remove
+          {getBlockPreview(block)}
         </button>
-      </div>
 
-      {(block.type === "text" || block.type === "markdown") && (
-        <textarea
-          value={block.content || ""}
-          onChange={(e) => onChange("content", e.target.value)}
-          rows={4}
-          placeholder="Write markdown content here..."
-          className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-        />
-      )}
+        <div className="flex items-center gap-1.5">
+          <PositionControl index={index} total={total} onMove={onMove} />
 
-      {block.type === "code" && (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              value={block.title || ""}
-              onChange={(e) => onChange("title", e.target.value)}
-              placeholder="Title (optional)"
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-indigo-400"
-            />
-            <input
-              value={block.language || ""}
-              onChange={(e) => onChange("language", e.target.value)}
-              placeholder="Language (e.g. python, js)"
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-indigo-400"
-            />
-          </div>
-          <textarea
-            value={block.code || ""}
-            onChange={(e) => onChange("code", e.target.value)}
-            rows={4}
-            placeholder="Paste code snippet..."
-            className="w-full rounded-lg border border-slate-200 bg-slate-900 px-3 py-2 font-mono text-xs text-slate-100 outline-none"
-          />
-          <input
-            value={block.output || ""}
-            onChange={(e) => onChange("output", e.target.value)}
-            placeholder="Expected output (optional)"
-            className="w-full rounded-lg border border-slate-200 px-3 py-1.5 font-mono text-xs outline-none focus:border-indigo-400"
-          />
-        </div>
-      )}
-
-      {(block.type === "video" || block.type === "pdf" || block.type === "embed") && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <input
-            value={block.title || ""}
-            onChange={(e) => onChange("title", e.target.value)}
-            placeholder="Title"
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-          <input
-            value={block.url || ""}
-            onChange={(e) => onChange("url", e.target.value)}
-            placeholder="URL (https://... or /...)"
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-        </div>
-      )}
-
-      {block.type === "image" && (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <input
-            value={block.url || ""}
-            onChange={(e) => onChange("url", e.target.value)}
-            placeholder="Image URL"
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-          <input
-            value={block.caption || ""}
-            onChange={(e) => onChange("caption", e.target.value)}
-            placeholder="Caption (optional)"
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-        </div>
-      )}
-
-      {block.type === "link" && (
-        <div className="space-y-2">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <input
-              value={block.title || ""}
-              onChange={(e) => onChange("title", e.target.value)}
-              placeholder="Link title"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-            />
-            <input
-              value={block.url || ""}
-              onChange={(e) => onChange("url", e.target.value)}
-              placeholder="https://..."
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-            />
-          </div>
-          <input
-            value={block.description || ""}
-            onChange={(e) => onChange("description", e.target.value)}
-            placeholder="Short description"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-        </div>
-      )}
-
-      {block.type === "callout" && (
-        <div className="space-y-2">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <select
-              value={block.tone || "info"}
-              onChange={(e) => onChange("tone", e.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400"
+          {!compact && (
+            <button
+              type="button"
+              onClick={() => setOpen((value) => !value)}
+              title={open ? "Collapse" : "Expand"}
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs text-slate-500 hover:bg-slate-100"
             >
-              <option value="info">Info</option>
-              <option value="tip">Tip</option>
-              <option value="warning">Warning</option>
-            </select>
-            <input
-              value={block.title || ""}
-              onChange={(e) => onChange("title", e.target.value)}
-              placeholder="Callout title"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-            />
-          </div>
-          <textarea
-            value={block.content || ""}
-            onChange={(e) => onChange("content", e.target.value)}
-            rows={2}
-            placeholder="Callout text..."
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-        </div>
-      )}
+              {open ? "▴" : "▾"}
+            </button>
+          )}
 
-      {block.type === "checklist" && (
-        <div className="space-y-2">
-          <input
-            value={block.title || ""}
-            onChange={(e) => onChange("title", e.target.value)}
-            placeholder="Checklist title"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-          <textarea
-            value={(block.items || []).join("\n")}
-            onChange={(e) => onChange("items", e.target.value.split("\n"))}
-            rows={3}
-            placeholder="One checklist item per line..."
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-        </div>
-      )}
-
-      {block.type === "quiz" && (
-        <div className="space-y-3">
-          <input
-            value={block.title || ""}
-            onChange={(e) => onChange("title", e.target.value)}
-            placeholder="Quiz title"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
-          />
-          {(block.questions || []).map((q, qIdx) => (
-            <div key={qIdx} className="space-y-2 rounded-lg bg-slate-50 p-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-600">
-                  Question {qIdx + 1}
-                </span>
-                {(block.questions || []).length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onChange(
-                        "questions",
-                        block.questions.filter((_, i) => i !== qIdx)
-                      )
-                    }
-                    className="text-xs text-red-500"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-              <input
-                value={q.question || ""}
-                onChange={(e) => {
-                  const next = [...block.questions];
-                  next[qIdx] = { ...q, question: e.target.value };
-                  onChange("questions", next);
-                }}
-                placeholder="Question text"
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none"
-              />
-              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                {(q.options || ["", "", "", ""]).map((opt, oIdx) => (
-                  <input
-                    key={oIdx}
-                    value={opt}
-                    onChange={(e) => {
-                      const next = [...block.questions];
-                      const nextOpts = [...(q.options || ["", "", "", ""])];
-                      nextOpts[oIdx] = e.target.value;
-                      next[qIdx] = { ...q, options: nextOpts };
-                      onChange("questions", next);
-                    }}
-                    placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none"
-                  />
-                ))}
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <select
-                  value={Number(q.answer) || 0}
-                  onChange={(e) => {
-                    const next = [...block.questions];
-                    next[qIdx] = { ...q, answer: Number(e.target.value) };
-                    onChange("questions", next);
-                  }}
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none"
-                >
-                  <option value={0}>Correct: Option A</option>
-                  <option value={1}>Correct: Option B</option>
-                  <option value={2}>Correct: Option C</option>
-                  <option value={3}>Correct: Option D</option>
-                </select>
-                <input
-                  value={q.explanation || ""}
-                  onChange={(e) => {
-                    const next = [...block.questions];
-                    next[qIdx] = { ...q, explanation: e.target.value };
-                    onChange("questions", next);
-                  }}
-                  placeholder="Explanation (optional)"
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none"
-                />
-              </div>
-            </div>
-          ))}
           <button
             type="button"
-            onClick={() =>
-              onChange("questions", [
-                ...(block.questions || []),
-                { question: "", options: ["", "", "", ""], answer: 0, explanation: "" }
-              ])
-            }
-            className="text-xs font-semibold text-indigo-600 hover:underline"
+            onClick={onRemove}
+            title="Remove block"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-white text-sm text-red-500 hover:bg-red-50"
           >
-            + Add Question
+            ×
           </button>
+        </div>
+      </div>
+
+      {showBody && (
+        <div className="border-t border-slate-100 p-3">
+          {(block.type === "text" || block.type === "markdown") && (
+            <textarea
+              value={block.content || ""}
+              onChange={(e) => onChange("content", e.target.value)}
+              rows={4}
+              placeholder="Write markdown content here..."
+              className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+            />
+          )}
+
+          {block.type === "code" && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={block.title || ""}
+                  onChange={(e) => onChange("title", e.target.value)}
+                  placeholder="Title (optional)"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-indigo-400"
+                />
+                <input
+                  value={block.language || ""}
+                  onChange={(e) => onChange("language", e.target.value)}
+                  placeholder="Language (e.g. python, js)"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-indigo-400"
+                />
+              </div>
+              <textarea
+                value={block.code || ""}
+                onChange={(e) => onChange("code", e.target.value)}
+                rows={4}
+                placeholder="Paste code snippet..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-900 px-3 py-2 font-mono text-xs text-slate-100 outline-none"
+              />
+              <input
+                value={block.output || ""}
+                onChange={(e) => onChange("output", e.target.value)}
+                placeholder="Expected output (optional)"
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 font-mono text-xs outline-none focus:border-indigo-400"
+              />
+            </div>
+          )}
+
+          {(block.type === "video" || block.type === "pdf" || block.type === "embed") && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input
+                value={block.title || ""}
+                onChange={(e) => onChange("title", e.target.value)}
+                placeholder="Title"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+              <input
+                value={block.url || ""}
+                onChange={(e) => onChange("url", e.target.value)}
+                placeholder="URL (https://... or /...)"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+          )}
+
+          {block.type === "image" && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input
+                value={block.url || ""}
+                onChange={(e) => onChange("url", e.target.value)}
+                placeholder="Image URL"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+              <input
+                value={block.caption || ""}
+                onChange={(e) => onChange("caption", e.target.value)}
+                placeholder="Caption (optional)"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+          )}
+
+          {block.type === "link" && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input
+                  value={block.title || ""}
+                  onChange={(e) => onChange("title", e.target.value)}
+                  placeholder="Link title"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                />
+                <input
+                  value={block.url || ""}
+                  onChange={(e) => onChange("url", e.target.value)}
+                  placeholder="https://..."
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                />
+              </div>
+              <input
+                value={block.description || ""}
+                onChange={(e) => onChange("description", e.target.value)}
+                placeholder="Short description"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+          )}
+
+          {block.type === "callout" && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <select
+                  value={block.tone || "info"}
+                  onChange={(e) => onChange("tone", e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                >
+                  <option value="info">Info</option>
+                  <option value="tip">Tip</option>
+                  <option value="warning">Warning</option>
+                </select>
+                <input
+                  value={block.title || ""}
+                  onChange={(e) => onChange("title", e.target.value)}
+                  placeholder="Callout title"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                />
+              </div>
+              <textarea
+                value={block.content || ""}
+                onChange={(e) => onChange("content", e.target.value)}
+                rows={2}
+                placeholder="Callout text..."
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+          )}
+
+          {block.type === "checklist" && (
+            <div className="space-y-2">
+              <input
+                value={block.title || ""}
+                onChange={(e) => onChange("title", e.target.value)}
+                placeholder="Checklist title"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+              <textarea
+                value={(block.items || []).join("\n")}
+                onChange={(e) => onChange("items", e.target.value.split("\n"))}
+                rows={3}
+                placeholder="One checklist item per line..."
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+            </div>
+          )}
+
+          {block.type === "quiz" && (
+            <div className="space-y-3">
+              <input
+                value={block.title || ""}
+                onChange={(e) => onChange("title", e.target.value)}
+                placeholder="Quiz title"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+              />
+              {(block.questions || []).map((q, qIdx) => (
+                <div key={qIdx} className="space-y-2 rounded-lg bg-slate-50 p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-600">
+                      Question {qIdx + 1}
+                    </span>
+                    {(block.questions || []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange(
+                            "questions",
+                            block.questions.filter((_, i) => i !== qIdx)
+                          )
+                        }
+                        className="text-xs text-red-500"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    value={q.question || ""}
+                    onChange={(e) => {
+                      const next = [...block.questions];
+                      next[qIdx] = { ...q, question: e.target.value };
+                      onChange("questions", next);
+                    }}
+                    placeholder="Question text"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none"
+                  />
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    {(q.options || ["", "", "", ""]).map((opt, oIdx) => (
+                      <input
+                        key={oIdx}
+                        value={opt}
+                        onChange={(e) => {
+                          const next = [...block.questions];
+                          const nextOpts = [...(q.options || ["", "", "", ""])];
+                          nextOpts[oIdx] = e.target.value;
+                          next[qIdx] = { ...q, options: nextOpts };
+                          onChange("questions", next);
+                        }}
+                        placeholder={`Option ${String.fromCharCode(65 + oIdx)}`}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none"
+                      />
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <select
+                      value={Number(q.answer) || 0}
+                      onChange={(e) => {
+                        const next = [...block.questions];
+                        next[qIdx] = { ...q, answer: Number(e.target.value) };
+                        onChange("questions", next);
+                      }}
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none"
+                    >
+                      <option value={0}>Correct: Option A</option>
+                      <option value={1}>Correct: Option B</option>
+                      <option value={2}>Correct: Option C</option>
+                      <option value={3}>Correct: Option D</option>
+                    </select>
+                    <input
+                      value={q.explanation || ""}
+                      onChange={(e) => {
+                        const next = [...block.questions];
+                        next[qIdx] = { ...q, explanation: e.target.value };
+                        onChange("questions", next);
+                      }}
+                      placeholder="Explanation (optional)"
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none"
+                    />
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  onChange("questions", [
+                    ...(block.questions || []),
+                    { question: "", options: ["", "", "", ""], answer: 0, explanation: "" }
+                  ])
+                }
+                className="text-xs font-semibold text-indigo-600 hover:underline"
+              >
+                + Add Question
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+
+/* ----------------------------------
+   SMALL COMPONENTS
+---------------------------------- */
 
 function StatCard({ title, value, color }) {
   const colors = {
