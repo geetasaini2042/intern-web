@@ -462,17 +462,68 @@ function Markdown({ content }) {
 
   return <div className="text-[15px] text-slate-700">{nodes}</div>;
 }
+function isHtmlCode(block) {
+  const language = String(block.language || "").toLowerCase();
+  const code = String(block.code || "").trim();
 
-/* ----------------------------------
-   CODE BLOCK
----------------------------------- */
+  return (
+    ["html", "htm", "xhtml"].includes(language) ||
+    /^<!doctype\s+html/i.test(code) ||
+    /<html[\s>]/i.test(code)
+  );
+}
+function buildPreviewDocument(code) {
+  const source = String(code || "").trim();
+
+  // Complete HTML document: render exactly as submitted
+  if (
+    /<!doctype\s+html/i.test(source) ||
+    /<html[\s>]/i.test(source)
+  ) {
+    return source;
+  }
+
+  // HTML fragment: create a complete browser document
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live HTML Preview</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      color: #1e293b;
+    }
+
+    img {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+${source}
+</body>
+</html>`;
+}
+
 
 function CodeBlock({ block }) {
   const [copied, setCopied] = useState(false);
 
+  const code = String(block.code || "");
+
+  const htmlPreview = isHtmlCode(block);
+
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(block.code || "");
+      await navigator.clipboard.writeText(code);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -482,6 +533,9 @@ function CodeBlock({ block }) {
 
   return (
     <div className="mt-4 overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+
+      {/* EXISTING CODE HEADER */}
+
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
         <span className="font-mono text-xs text-slate-400">
           {block.title || block.language || "Code"}
@@ -496,9 +550,41 @@ function CodeBlock({ block }) {
         </button>
       </div>
 
+      {/* ORIGINAL CODE - SAME UI */}
+
       <pre className="overflow-x-auto p-4 text-sm leading-6 text-slate-100">
-        <code className="font-mono">{block.code}</code>
+        <code className="font-mono whitespace-pre">
+          {code}
+        </code>
       </pre>
+
+      {/* ACTUAL HTML OUTPUT - ONLY ADDITION */}
+
+      {htmlPreview && (
+        <div className="border-t border-white/10 bg-white">
+
+          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
+            <span className="text-xs font-semibold text-slate-600">
+              Live Output
+            </span>
+
+            <span className="text-[10px] font-medium text-emerald-600">
+              ● Preview
+            </span>
+          </div>
+
+          <iframe
+            title="HTML Output"
+            srcDoc={buildPreviewDocument(code)}
+            sandbox="allow-scripts"
+            referrerPolicy="no-referrer"
+            className="block h-[400px] w-full border-0 bg-white sm:h-[480px]"
+          />
+
+        </div>
+      )}
+
+      {/* EXISTING OUTPUT */}
 
       {block.output && (
         <div className="border-t border-white/10 bg-black/30 px-4 py-3">
@@ -508,6 +594,7 @@ function CodeBlock({ block }) {
           </pre>
         </div>
       )}
+
     </div>
   );
 }
