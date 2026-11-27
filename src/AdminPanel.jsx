@@ -30,7 +30,8 @@ import {
   Bell,
   LogOut,
   ShieldCheck,
-  UserRound
+  UserRound,
+  UserRoundCheck
 } from "lucide-react";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -92,6 +93,11 @@ const navigation = [
         label: "Import Students",
         path: "import-students",
         icon: UserPlus
+      },
+      {
+        label: "Mentors",
+        path: "mentors",
+        icon: UserRoundCheck
       },
       {
         label: "Learn Programs",
