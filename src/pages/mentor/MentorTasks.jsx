@@ -8,7 +8,7 @@ import {
   Clock3,
   AlertCircle,
   ExternalLink,
-  Github,
+  GitBranch,
   FileText,
   Loader2,
   X,
@@ -377,8 +377,8 @@ export default function MentorTasks() {
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 font-medium text-slate-700 hover:underline"
                     >
-                      <Github size={13} />
-                      GitHub Repo
+                      <GitBranch size={13} />
+                      GitBranch Repo
                     </a>
                   )}
                   {item.file_url && (

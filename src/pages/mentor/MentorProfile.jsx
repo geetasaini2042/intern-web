@@ -5,7 +5,7 @@ import {
   Phone,
   Briefcase,
   GraduationCap,
-  Linkedin,
+  Globe,
   LockKeyhole,
   Eye,
   EyeOff,
@@ -416,7 +416,7 @@ export default function MentorProfile() {
                   LinkedIn / Portfolio URL
                 </label>
                 <div className="relative">
-                  <Linkedin
+                  <Globe
                     size={16}
                     className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
                   />

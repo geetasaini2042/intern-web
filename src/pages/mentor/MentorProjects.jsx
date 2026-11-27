@@ -8,7 +8,7 @@ import {
   Clock3,
   AlertCircle,
   ExternalLink,
-  Github,
+  GitBranch,
   FileText,
   Loader2,
   X,
@@ -403,8 +403,8 @@ export default function MentorProjects() {
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 font-medium text-slate-700 hover:underline"
                     >
-                      <Github size={13} />
-                      GitHub Repo
+                      <GitBranch size={13} />
+                      Github Repo
                     </a>
                   )}
                   {item.report_url && (
@@ -497,8 +497,8 @@ export default function MentorProjects() {
                       rel="noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                     >
-                      <Github size={13} />
-                      Open GitHub
+                      <GitBranch size={13} />
+                      Open GitBranch
                     </a>
                   )}
                   {selected.report_url && (
