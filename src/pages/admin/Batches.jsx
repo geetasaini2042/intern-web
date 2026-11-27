@@ -5,6 +5,9 @@ const EMPTY_FORM = {
   name: "",
   program_id: "",
   domain: "",
+  mentor_id: "",
+  mode: "Online",
+  duration_hours: "",
   description: "",
   start_date: "",
   end_date: "",
@@ -18,9 +21,16 @@ const getBatchName = (batch) => batch.name || batch.title || "Untitled Batch";
 
 const getDomain = (batch) => batch.domain || batch.internship_domain || "";
 
+const getMentorName = (mentor) =>
+  mentor?.name || mentor?.full_name || mentor?.mentor_name || "Unnamed Mentor";
+
+const getMentorEmail = (mentor) =>
+  mentor?.email || mentor?.mentor_email || "";
+
 export default function Batches() {
   const [batches, setBatches] = useState([]);
   const [programs, setPrograms] = useState([]);
+  const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [programFilter, setProgramFilter] = useState("");
@@ -40,9 +50,10 @@ export default function Batches() {
     setError("");
 
     try {
-      const [batchRes, programRes] = await Promise.all([
+      const [batchRes, programRes, mentorRes] = await Promise.all([
         apiGet("/admin/batches"),
         apiGet("/admin/programs"),
+        apiGet("/admin/mentors").catch(() => []),
       ]);
 
       const batchList = Array.isArray(batchRes)
@@ -53,8 +64,13 @@ export default function Batches() {
         ? programRes
         : programRes?.programs || programRes?.items || programRes?.data || [];
 
+      const mentorList = Array.isArray(mentorRes)
+        ? mentorRes
+        : mentorRes?.mentors || mentorRes?.items || mentorRes?.data || [];
+
       setBatches(Array.isArray(batchList) ? batchList : []);
       setPrograms(Array.isArray(programList) ? programList : []);
+      setMentors(Array.isArray(mentorList) ? mentorList : []);
     } catch (err) {
       console.error("Batches loading error:", err);
       setError(err.message || "Unable to load batches.");
@@ -77,13 +93,32 @@ export default function Batches() {
     return found ? found.name || found.title : "Unknown Program";
   };
 
+  const getBatchMentor = (batch) => {
+    const mentorId = batch.mentor_id || batch.mentorId;
+    if (mentorId) {
+      const found = mentors.find((m) => String(getId(m)) === String(mentorId));
+      if (found) {
+        return {
+          name: getMentorName(found),
+          email: getMentorEmail(found),
+        };
+      }
+    }
+    return {
+      name: batch.mentor || batch.mentor_name || "",
+      email: batch.mentor_email || "",
+    };
+  };
+
   const filteredBatches = batches.filter((batch) => {
     const q = search.toLowerCase();
+    const mentorInfo = getBatchMentor(batch);
 
     const matchesSearch =
       getBatchName(batch).toLowerCase().includes(q) ||
       getProgram(batch).toLowerCase().includes(q) ||
       getDomain(batch).toLowerCase().includes(q) ||
+      mentorInfo.name.toLowerCase().includes(q) ||
       (batch.description || "").toLowerCase().includes(q);
 
     const batchProgramId =
@@ -129,10 +164,15 @@ export default function Batches() {
         ? getId(batch.program_id)
         : batch.program_id || batch.programId || batch.program || "";
 
+    const mentorId = batch.mentor_id || batch.mentorId || "";
+
     setForm({
       name: batch.name || batch.title || "",
       program_id: programId ? String(programId) : "",
       domain: getDomain(batch),
+      mentor_id: mentorId ? String(mentorId) : "",
+      mode: batch.mode || "Online",
+      duration_hours: batch.duration_hours ?? "",
       description: batch.description || "",
       start_date: batch.start_date || batch.startDate || "",
       end_date: batch.end_date || batch.endDate || "",
@@ -187,6 +227,10 @@ export default function Batches() {
       name: form.name.trim(),
       program_id: form.program_id,
       domain: form.domain.trim(),
+      mentor_id: form.mentor_id || null,
+      mode: form.mode || "Online",
+      duration_hours:
+        form.duration_hours === "" ? null : Number(form.duration_hours),
       description: form.description,
       start_date: form.start_date || null,
       end_date: form.end_date || null,
@@ -231,15 +275,13 @@ export default function Batches() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
-
-        {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Batches
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Organize programs into batches and manage student enrollment.
+              Organize programs into batches, assign mentors, and manage shared internship details.
             </p>
           </div>
 
@@ -251,7 +293,6 @@ export default function Batches() {
           </button>
         </div>
 
-        {/* Notice */}
         {notice && (
           <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {notice}
@@ -265,19 +306,17 @@ export default function Batches() {
           </div>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <StatCard title="Total Batches" value={batches.length} color="indigo" />
           <StatCard title="Active Batches" value={activeCount} color="emerald" />
           <StatCard title="Enrolled Students" value={totalStudents} color="blue" />
         </div>
 
-        {/* Filters */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 sm:flex-row">
             <input
               type="text"
-              placeholder="Search batch, program or domain..."
+              placeholder="Search batch, program, domain or mentor..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
@@ -305,7 +344,6 @@ export default function Batches() {
           </div>
         </div>
 
-        {/* Loading */}
         {loading ? (
           <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" />
@@ -338,7 +376,6 @@ export default function Batches() {
           </div>
         ) : (
           <>
-            {/* Desktop Table */}
             <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -346,11 +383,10 @@ export default function Batches() {
                     <tr>
                       {[
                         "Batch",
-                        "Program",
-                        "Domain",
-                        "Dates",
+                        "Program & Domain",
+                        "Mentor",
+                        "Schedule",
                         "Students",
-                        "Capacity",
                         "Status",
                         "Actions",
                       ].map((heading) => (
@@ -365,150 +401,197 @@ export default function Batches() {
                   </thead>
 
                   <tbody className="divide-y divide-slate-100">
-                    {filteredBatches.map((batch) => (
-                      <tr
-                        key={getId(batch)}
-                        className="transition hover:bg-slate-50"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="font-semibold text-slate-900">
-                            {getBatchName(batch)}
-                          </div>
-                          <div className="mt-1 max-w-xs truncate text-xs text-slate-500">
-                            {batch.description || "No description"}
-                          </div>
-                        </td>
+                    {filteredBatches.map((batch) => {
+                      const mentorInfo = getBatchMentor(batch);
+                      return (
+                        <tr
+                          key={getId(batch)}
+                          className="transition hover:bg-slate-50"
+                        >
+                          <td className="px-5 py-4">
+                            <div className="font-semibold text-slate-900">
+                              {getBatchName(batch)}
+                            </div>
+                            <div className="mt-1 max-w-xs truncate text-xs text-slate-500">
+                              {batch.description || "No description"}
+                            </div>
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {batch.mode && (
+                                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                  {batch.mode}
+                                </span>
+                              )}
+                              {batch.duration_hours && (
+                                <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                                  {batch.duration_hours} hrs
+                                </span>
+                              )}
+                            </div>
+                          </td>
 
-                        <td className="px-5 py-4 text-sm text-slate-600">
-                          {getProgram(batch)}
-                        </td>
+                          <td className="px-5 py-4 text-sm">
+                            <div className="font-medium text-slate-800">
+                              {getProgram(batch)}
+                            </div>
+                            <div className="mt-0.5 text-xs text-slate-500">
+                              {getDomain(batch) || "—"}
+                            </div>
+                          </td>
 
-                        <td className="px-5 py-4 text-sm text-slate-600">
-                          {getDomain(batch) || "—"}
-                        </td>
+                          <td className="px-5 py-4 text-sm">
+                            <div className="font-medium text-slate-800">
+                              {mentorInfo.name || "Unassigned"}
+                            </div>
+                            {mentorInfo.email && (
+                              <div className="mt-0.5 text-xs text-slate-500">
+                                {mentorInfo.email}
+                              </div>
+                            )}
+                          </td>
 
-                        <td className="px-5 py-4 text-sm text-slate-600">
-                          <div>{batch.start_date || batch.startDate || "—"}</div>
-                          <div className="text-xs text-slate-400">
-                            to {batch.end_date || batch.endDate || "—"}
-                          </div>
-                        </td>
+                          <td className="px-5 py-4 text-sm text-slate-600">
+                            <div>{batch.start_date || batch.startDate || "—"}</div>
+                            <div className="text-xs text-slate-400">
+                              to {batch.end_date || batch.endDate || "—"}
+                            </div>
+                          </td>
 
-                        <td className="px-5 py-4 text-sm font-medium text-slate-700">
-                          {batch.students_count ||
-                            batch.enrolled_count ||
-                            batch.total_students ||
-                            0}
-                        </td>
+                          <td className="px-5 py-4 text-sm font-medium text-slate-700">
+                            {batch.students_count ||
+                              batch.enrolled_count ||
+                              batch.total_students ||
+                              0}
+                            {batch.capacity ?? batch.max_students
+                              ? ` / ${batch.capacity ?? batch.max_students}`
+                              : ""}
+                          </td>
 
-                        <td className="px-5 py-4 text-sm text-slate-600">
-                          {batch.capacity ?? batch.max_students ?? "—"}
-                        </td>
+                          <td className="px-5 py-4">
+                            <StatusBadge status={batch.status || "active"} />
+                          </td>
 
-                        <td className="px-5 py-4">
-                          <StatusBadge status={batch.status || "active"} />
-                        </td>
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => openEdit(batch)}
+                                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                              >
+                                Edit
+                              </button>
 
-                        <td className="px-5 py-4">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => openEdit(batch)}
-                              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100"
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              onClick={() => handleDelete(batch)}
-                              className="rounded-lg border border-red-100 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              <button
+                                onClick={() => handleDelete(batch)}
+                                className="rounded-lg border border-red-100 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Mobile Cards */}
             <div className="grid grid-cols-1 gap-4 md:hidden">
-              {filteredBatches.map((batch) => (
-                <div
-                  key={getId(batch)}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold text-slate-900">
-                        {getBatchName(batch)}
-                      </h3>
-                      <p className="mt-1 text-sm text-indigo-600">
-                        {getProgram(batch)}
-                      </p>
-                      {getDomain(batch) && (
-                        <span className="mt-2 inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
-                          {getDomain(batch)}
-                        </span>
-                      )}
+              {filteredBatches.map((batch) => {
+                const mentorInfo = getBatchMentor(batch);
+                return (
+                  <div
+                    key={getId(batch)}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold text-slate-900">
+                          {getBatchName(batch)}
+                        </h3>
+                        <p className="mt-1 text-sm text-indigo-600">
+                          {getProgram(batch)}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {getDomain(batch) && (
+                            <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                              {getDomain(batch)}
+                            </span>
+                          )}
+                          {batch.mode && (
+                            <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                              {batch.mode}
+                            </span>
+                          )}
+                          {batch.duration_hours && (
+                            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                              {batch.duration_hours} hrs
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <StatusBadge status={batch.status || "active"} />
                     </div>
 
-                    <StatusBadge status={batch.status || "active"} />
+                    <p className="mt-3 text-sm leading-6 text-slate-600">
+                      {batch.description || "No description available."}
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <InfoBox
+                        label="Mentor"
+                        value={mentorInfo.name || "Unassigned"}
+                      />
+                      <InfoBox
+                        label="Mentor Email"
+                        value={mentorInfo.email || "—"}
+                      />
+                      <InfoBox
+                        label="Start Date"
+                        value={batch.start_date || batch.startDate || "—"}
+                      />
+                      <InfoBox
+                        label="End Date"
+                        value={batch.end_date || batch.endDate || "—"}
+                      />
+                      <InfoBox
+                        label="Students"
+                        value={
+                          batch.students_count ||
+                          batch.enrolled_count ||
+                          batch.total_students ||
+                          0
+                        }
+                      />
+                      <InfoBox
+                        label="Capacity"
+                        value={batch.capacity ?? batch.max_students ?? "—"}
+                      />
+                    </div>
+
+                    <div className="mt-4 flex gap-2 border-t border-slate-100 pt-3">
+                      <button
+                        onClick={() => openEdit(batch)}
+                        className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(batch)}
+                        className="flex-1 rounded-xl border border-red-100 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
-                    {batch.description || "No description available."}
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <InfoBox
-                      label="Start Date"
-                      value={batch.start_date || batch.startDate || "—"}
-                    />
-                    <InfoBox
-                      label="End Date"
-                      value={batch.end_date || batch.endDate || "—"}
-                    />
-                    <InfoBox
-                      label="Students"
-                      value={
-                        batch.students_count ||
-                        batch.enrolled_count ||
-                        batch.total_students ||
-                        0
-                      }
-                    />
-                    <InfoBox
-                      label="Capacity"
-                      value={batch.capacity ?? batch.max_students ?? "—"}
-                    />
-                  </div>
-
-                  <div className="mt-4 flex gap-2 border-t border-slate-100 pt-3">
-                    <button
-                      onClick={() => openEdit(batch)}
-                      className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      onClick={() => handleDelete(batch)}
-                      className="flex-1 rounded-xl border border-red-100 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
       </div>
 
-      {/* Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4">
           <div className="my-auto w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -518,7 +601,7 @@ export default function Batches() {
                   {editing ? "Edit Batch" : "Create Batch"}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  Configure batch details
+                  Configure shared details for all students in this batch
                 </p>
               </div>
 
@@ -592,6 +675,65 @@ export default function Batches() {
                 />
               </div>
 
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Assign Mentor
+                </label>
+                <select
+                  name="mentor_id"
+                  value={form.mentor_id}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                >
+                  <option value="">Select Mentor</option>
+                  {mentors.map((mentor) => (
+                    <option key={getId(mentor)} value={getId(mentor)}>
+                      {getMentorName(mentor)}
+                      {getMentorEmail(mentor) ? ` (${getMentorEmail(mentor)})` : ""}
+                    </option>
+                  ))}
+                </select>
+
+                {mentors.length === 0 && (
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    No mentors found in mentors collection.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Internship Mode
+                  </label>
+                  <select
+                    name="mode"
+                    value={form.mode}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-indigo-400"
+                  >
+                    <option value="Online">Online</option>
+                    <option value="Offline">Offline</option>
+                    <option value="Hybrid">Hybrid</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Duration (Hours)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    name="duration_hours"
+                    value={form.duration_hours}
+                    onChange={handleChange}
+                    placeholder="e.g. 120"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-indigo-400"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -621,19 +763,37 @@ export default function Batches() {
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Student Capacity
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  name="capacity"
-                  value={form.capacity}
-                  onChange={handleChange}
-                  placeholder="Maximum students"
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-indigo-400"
-                />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Student Capacity
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    name="capacity"
+                    value={form.capacity}
+                    onChange={handleChange}
+                    placeholder="Maximum students"
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-indigo-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    Status
+                  </label>
+                  <select
+                    name="status"
+                    value={form.status}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-indigo-400"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -648,22 +808,6 @@ export default function Batches() {
                   placeholder="Batch details..."
                   className="w-full resize-y rounded-xl border border-slate-200 px-3.5 py-3 text-sm outline-none focus:border-indigo-400"
                 />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Status
-                </label>
-                <select
-                  name="status"
-                  value={form.status}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-indigo-400"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="completed">Completed</option>
-                </select>
               </div>
 
               <div className="flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">

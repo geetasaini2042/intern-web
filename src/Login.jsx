@@ -8,10 +8,12 @@ import {
   ArrowRight,
   ShieldCheck,
   Loader2,
+  UserCheck,
 } from "lucide-react";
 import { API } from "./lib/api";
 
 const ADMIN_EMAIL = "admin@st.tech";
+const MENTOR_TRIGGER_EMAIL = "mentor@st.tech";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -19,11 +21,18 @@ export default function Login() {
   const [email, setEmail] = useState(
     () => localStorage.getItem("intern_email") || ""
   );
+  const [mentorEmail, setMentorEmail] = useState(
+    () => localStorage.getItem("mentor_email") || ""
+  );
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const cleanInputEmail = email.trim().toLowerCase();
+  const isAdminEmail = cleanInputEmail === ADMIN_EMAIL;
+  const isMentorMode = cleanInputEmail === MENTOR_TRIGGER_EMAIL;
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -33,6 +42,11 @@ export default function Login() {
 
     if (!cleanEmail || !password) {
       setError("Please enter your email and password.");
+      return;
+    }
+
+    if (cleanEmail === MENTOR_TRIGGER_EMAIL && !mentorEmail.trim()) {
+      setError("Please enter your registered mentor email address.");
       return;
     }
 
@@ -64,6 +78,8 @@ export default function Login() {
         localStorage.removeItem("access_token");
         localStorage.removeItem("intern_user");
         localStorage.removeItem("intern_profile");
+        localStorage.removeItem("mentor_token");
+        localStorage.removeItem("mentor_profile");
 
         if (remember) {
           localStorage.setItem("intern_email", cleanEmail);
@@ -72,6 +88,57 @@ export default function Login() {
         }
 
         navigate("/admin", { replace: true });
+        return;
+      }
+
+      if (cleanEmail === MENTOR_TRIGGER_EMAIL) {
+        const cleanMentorEmail = mentorEmail.trim().toLowerCase();
+
+        const res = await fetch(`${API}/mentor/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: cleanMentorEmail,
+            password,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(
+            data.detail || data.message || "Invalid mentor email or password."
+          );
+        }
+
+        if (!data.access_token) {
+          throw new Error("Authentication token not received.");
+        }
+
+        localStorage.setItem("mentor_token", data.access_token);
+
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_email");
+        localStorage.removeItem("intern_token");
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("intern_user");
+        localStorage.removeItem("intern_profile");
+
+        if (data.mentor) {
+          localStorage.setItem("mentor_profile", JSON.stringify(data.mentor));
+        }
+
+        if (remember) {
+          localStorage.setItem("intern_email", cleanEmail);
+          localStorage.setItem("mentor_email", cleanMentorEmail);
+        } else {
+          localStorage.removeItem("intern_email");
+          localStorage.removeItem("mentor_email");
+        }
+
+        navigate("/mentor", { replace: true });
         return;
       }
 
@@ -102,12 +169,11 @@ export default function Login() {
 
       localStorage.removeItem("admin_token");
       localStorage.removeItem("admin_email");
+      localStorage.removeItem("mentor_token");
+      localStorage.removeItem("mentor_profile");
 
       if (data.profile) {
-        localStorage.setItem(
-          "intern_profile",
-          JSON.stringify(data.profile)
-        );
+        localStorage.setItem("intern_profile", JSON.stringify(data.profile));
       }
 
       if (remember) {
@@ -124,13 +190,9 @@ export default function Login() {
     }
   };
 
-  const isAdminEmail = email.trim().toLowerCase() === ADMIN_EMAIL;
-
   return (
     <div className="min-h-screen min-h-[100dvh] bg-[#f5f7fb] flex flex-col lg:flex-row">
-
       <div className="hidden lg:flex lg:w-[48%] xl:w-[50%] bg-[#101b35] relative overflow-hidden flex-col justify-between p-12 xl:p-16 text-white">
-
         <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full border border-white/5" />
         <div className="absolute -top-24 -left-24 w-[350px] h-[350px] rounded-full border border-white/5" />
         <div className="absolute bottom-[-180px] right-[-150px] w-[500px] h-[500px] rounded-full bg-blue-600/10 blur-3xl" />
@@ -194,9 +256,7 @@ export default function Login() {
       </div>
 
       <div className="flex-1 flex items-center justify-center px-5 py-8 sm:px-8 lg:px-12">
-
         <div className="w-full max-w-[440px]">
-
           <div className="flex lg:hidden items-center justify-center gap-3 mb-10">
             <img
               src="/logo.png"
@@ -215,10 +275,13 @@ export default function Login() {
           </div>
 
           <div className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl shadow-[0_15px_60px_-20px_rgba(15,23,42,0.12)] p-6 sm:p-9">
-
             <div className="mb-8">
               <div className="text-xs font-bold tracking-[2px] uppercase text-blue-600 mb-3">
-                {isAdminEmail ? "Admin Portal" : "Intern Portal"}
+                {isAdminEmail
+                  ? "Admin Portal"
+                  : isMentorMode
+                  ? "Mentor Portal"
+                  : "Intern Portal"}
               </div>
 
               <h1 className="text-2xl sm:text-[30px] font-bold text-[#14213d] tracking-tight">
@@ -228,12 +291,13 @@ export default function Login() {
               <p className="text-sm text-slate-500 mt-2 leading-6">
                 {isAdminEmail
                   ? "Sign in to access the administration dashboard."
+                  : isMentorMode
+                  ? "Enter your mentor email and password to access your dashboard."
                   : "Sign in to continue to your internship dashboard."}
               </p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
-
               <div>
                 <label
                   htmlFor="email"
@@ -264,6 +328,38 @@ export default function Login() {
                 </div>
               </div>
 
+              {isMentorMode && (
+                <div>
+                  <label
+                    htmlFor="mentorEmail"
+                    className="block text-sm font-semibold text-slate-700 mb-2"
+                  >
+                    Mentor Email address
+                  </label>
+
+                  <div className="relative">
+                    <UserCheck
+                      size={18}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500"
+                    />
+
+                    <input
+                      id="mentorEmail"
+                      type="email"
+                      value={mentorEmail}
+                      onChange={(e) => {
+                        setMentorEmail(e.target.value);
+                        setError("");
+                      }}
+                      placeholder="Enter your registered mentor email"
+                      autoComplete="email"
+                      className="w-full h-12 pl-11 pr-4 rounded-xl border border-blue-200 bg-blue-50/40 text-sm text-slate-800 outline-none transition-all focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label
                   htmlFor="password"
@@ -289,6 +385,8 @@ export default function Login() {
                     placeholder={
                       isAdminEmail
                         ? "Enter admin key"
+                        : isMentorMode
+                        ? "Enter mentor password"
                         : "Enter your password"
                     }
                     autoComplete="current-password"
@@ -302,11 +400,7 @@ export default function Login() {
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
-                    {showPassword ? (
-                      <EyeOff size={18} />
-                    ) : (
-                      <Eye size={18} />
-                    )}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
@@ -330,7 +424,9 @@ export default function Login() {
                     type="button"
                     onClick={() =>
                       setError(
-                        "Please contact your internship coordinator to reset your password."
+                        isMentorMode
+                          ? "Please contact the administrator to reset your mentor password."
+                          : "Please contact your internship coordinator to reset your password."
                       )
                     }
                     className="text-xs sm:text-sm text-blue-600 font-semibold hover:text-blue-700"
@@ -358,7 +454,11 @@ export default function Login() {
                   </>
                 ) : (
                   <>
-                    {isAdminEmail ? "Sign in as Administrator" : "Sign in to portal"}
+                    {isAdminEmail
+                      ? "Sign in as Administrator"
+                      : isMentorMode
+                      ? "Sign in as Mentor"
+                      : "Sign in to portal"}
                     <ArrowRight size={18} />
                   </>
                 )}
