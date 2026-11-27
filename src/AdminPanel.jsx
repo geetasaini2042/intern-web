@@ -49,6 +49,7 @@ import CertificatesAdmin from "./pages/admin/CertificatesAdmin";
 import AnnouncementsAdmin from "./pages/admin/AnnouncementsAdmin";
 import AdminSettings from "./pages/admin/AdminSettings";
 import ImportLegacyStudents from "./pages/admin/ImportLegacyStudents";
+import Mentors from "./pages/admin/Mentors";
 
 const navigation = [
   {
@@ -434,6 +435,7 @@ export default function AdminPanel() {
 
         <Route path="tasks" element={<TasksAdmin />} />
         <Route path="import-students" element={<ImportLegacyStudents />} />
+        <Route path="mentors" element={<Mentors />} />
         <Route path="learn" element={<LearnAdmin />} />
         <Route path="projects" element={<ProjectsAdmin />} />
 
